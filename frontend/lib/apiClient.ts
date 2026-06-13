@@ -50,13 +50,30 @@ export function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export async function apiBlob(path: string, init: RequestInit = {}): Promise<Blob> {
   const user = auth.currentUser;
-  if (!user) throw new ApiError('unauthenticated', 'Not signed in', 401);
+  if (!user) throw new ApiError("auth/no-user", "Not signed in", 401);
   const doFetch = async (force: boolean) => {
     const token = await user.getIdToken(force);
-    return fetch(`${BASE_URL}${path}`, { ...init, headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` } });
+    return fetch(`${BASE_URL}${path}`, {
+      ...init,
+      headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` },
+    });
   };
   let res = await doFetch(false);
   if (res.status === 401) res = await doFetch(true);
-  if (!res.ok) throw new ApiError(String(res.status), `Request failed with ${res.status}`, res.status);
+  // Match request(): a persistent 401 means the session is dead — sign out and redirect.
+  if (res.status === 401) {
+    await auth.signOut();
+    window.location.assign("/login");
+    throw new ApiError("auth/unauthorized", "Session expired", 401);
+  }
+  // Match request(): surface the backend's structured error message, not a bare status code.
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new ApiError(
+      body?.detail?.code ?? "api/error",
+      body?.detail?.message ?? res.statusText,
+      res.status
+    );
+  }
   return res.blob();
 }
