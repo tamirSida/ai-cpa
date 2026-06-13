@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% from "macros.html" import ltr %}
+{% block content %}
+<h1>קבלה {{ ltr(receipt.receiptNumber) }}</h1>
+<p><strong>{{ business.businessName }}</strong><br>
+{{ business.ownerName }} · עוסק פטור מס׳ {{ ltr(business.businessIdNumber) }}<br>
+{% if business.address %}{{ business.address }}<br>{% endif %}
+{% if business.phone %}{{ ltr(business.phone) }}{% endif %}{% if business.email %} · {{ ltr(business.email) }}{% endif %}</p>
+<table class="fields">
+<tr><td>תאריך הנפקה</td><td>{{ ltr(receipt.issueDate) }}</td></tr>
+<tr><td>לקוח</td><td>{{ receipt.clientSnapshot.name }}{% if receipt.clientSnapshot.taxId %} ({{ ltr(receipt.clientSnapshot.taxId) }}){% endif %}
+{% if receipt.clientSnapshot.address %}<br>{{ receipt.clientSnapshot.address }}{% endif %}</td></tr>
+<tr><td>תיאור</td><td>{{ receipt.description }}</td></tr>
+<tr><td>אמצעי תשלום</td><td>{{ payment_labels[receipt.paymentMethod] }}</td></tr>
+<tr><td>סכום</td><td class="amount">{{ ltr(receipt.amount | ils) }}</td></tr>
+</table>
+<p class="muted">עוסק פטור — אינו גובה מע״מ. מסמך זה מהווה קבלה בלבד ואינו חשבונית מס.</p>
+{% endblock %}

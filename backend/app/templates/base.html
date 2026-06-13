@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="he">
+<head><meta charset="utf-8">
+<style>
+/* @font-face stays in directly-supplied CSS (WeasyPrint regression breaks it inside @import) */
+@font-face { font-family: "Noto Sans Hebrew"; src: url("../assets/fonts/NotoSansHebrew-Regular.ttf"); font-weight: 400; }
+@font-face { font-family: "Noto Sans Hebrew"; src: url("../assets/fonts/NotoSansHebrew-Bold.ttf"); font-weight: 700; }
+/* Alias family with the SAME font files, applied to LTR islands: forces a PDF
+   font (Tf) switch around them so text extractors (pypdf) flush adjacent Hebrew
+   runs instead of dropping them on bidi direction flips. Visually identical. */
+@font-face { font-family: "Noto Sans Hebrew LTR"; src: url("../assets/fonts/NotoSansHebrew-Regular.ttf"); font-weight: 400; }
+@font-face { font-family: "Noto Sans Hebrew LTR"; src: url("../assets/fonts/NotoSansHebrew-Bold.ttf"); font-weight: 700; }
+span[dir="ltr"] { font-family: "Noto Sans Hebrew LTR", sans-serif; }
+@page { size: A4; margin: 18mm;
+  @bottom-center { content: "עמוד " counter(page) " מתוך " counter(pages);
+                   font-family: "Noto Sans Hebrew"; font-size: 9pt; color: #666; } }
+html { direction: rtl; }
+body { font-family: "Noto Sans Hebrew", sans-serif; font-size: 11pt; color: #111; }
+h1 { font-size: 18pt; margin-bottom: 4mm; }
+table.fields { width: 100%; border-collapse: collapse; margin-top: 6mm; }
+table.fields td { padding: 2mm 0; border-bottom: 0.3mm solid #ddd; vertical-align: top; }
+table.fields td:first-child { font-weight: 700; width: 35mm; }
+.amount { font-size: 16pt; font-weight: 700; }
+.muted { color: #555; font-size: 9pt; margin-top: 10mm; }
+</style></head>
+<body>{% block content %}{% endblock %}</body>
+</html>
