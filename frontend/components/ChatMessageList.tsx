@@ -12,6 +12,7 @@ type ChatMessageListProps = {
   onConfirm: () => Promise<void>;
   onCancel: () => Promise<void>;
   onRetry: (messageId: string) => void;
+  busy?: boolean;
 };
 
 export default function ChatMessageList({
@@ -20,6 +21,7 @@ export default function ChatMessageList({
   onConfirm,
   onCancel,
   onRetry,
+  busy = false,
 }: ChatMessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -52,14 +54,18 @@ export default function ChatMessageList({
     if (messages.length === prevCountRef.current) return;
     const isFirstLoad = prevCountRef.current === 0;
     prevCountRef.current = messages.length;
+    // The local user just sent the last message → always scroll so their own
+    // bubble is visible, even if the IntersectionObserver already flipped
+    // atBottom to false during the append.
+    const lastIsOwnPending = messages.length > 0 && messages[messages.length - 1].role === "user";
     if (isFirstLoad) {
       scrollToBottom("auto"); // instant on first load
-    } else if (atBottomRef.current) {
+    } else if (atBottomRef.current || lastIsOwnPending) {
       scrollToBottom("smooth");
     } else {
       setShowJump(true);
     }
-  }, [messages.length, scrollToBottom]);
+  }, [messages, scrollToBottom]);
 
   const pendingConfirmation = activeAction?.status === "pending_confirmation" ? activeAction : null;
   let confirmIndex = -1;
@@ -109,7 +115,10 @@ export default function ChatMessageList({
             {m.sendStatus === "failed" && (
               <button
                 onClick={() => onRetry(m.id)}
-                className="ms-auto flex min-h-12 items-center gap-1.5 text-sm font-medium text-destructive transition-transform duration-150 active:scale-[0.98]"
+                disabled={busy}
+                className={`ms-auto flex min-h-12 items-center gap-1.5 text-sm font-medium text-destructive transition-transform duration-150 active:scale-[0.98] ${
+                  busy ? "opacity-50" : ""
+                }`}
               >
                 <RefreshCw size={16} aria-hidden />
                 שליחה נכשלה — הקש לנסות שוב

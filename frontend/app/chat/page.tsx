@@ -145,7 +145,9 @@ export default function ChatPage() {
       applyTurn(res, actionId);
     } catch (e) {
       pushError(e);
-      setActiveAction(null);
+      // Keep the card on transient failures (network / 5xx) so the user can retry;
+      // only a definitive 4xx (e.g. 409 already-confirmed by another session) dismisses it.
+      if (e instanceof ApiError && e.status >= 400 && e.status < 500) setActiveAction(null);
     }
   }, [biz, activeAction, applyTurn, pushError]);
 
@@ -160,7 +162,9 @@ export default function ChatPage() {
       setActiveAction(null);
     } catch (e) {
       pushError(e);
-      setActiveAction(null);
+      // Keep the card on transient failures (network / 5xx) so the user can retry;
+      // only a definitive 4xx (e.g. 409 already-confirmed by another session) dismisses it.
+      if (e instanceof ApiError && e.status >= 400 && e.status < 500) setActiveAction(null);
     }
   }, [biz, activeAction, pushAssistant, pushError]);
 
@@ -179,6 +183,7 @@ export default function ChatPage() {
           onConfirm={confirmAction}
           onCancel={cancelAction}
           onRetry={retry}
+          busy={sending}
         />
       )}
       <ChatInput onSend={send} disabled={sending || historyLoading || !biz} />
