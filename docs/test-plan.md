@@ -30,21 +30,34 @@ The emulator + stubs **cannot** exercise, and a regression in any of these is in
 | Whole frontend | Zero component/page tests exist. |
 | Full PDF/ZIP chain | `render_pdf` + `fetch_asset` are both faked in the ZIP test. |
 
-## Layer 1 — Env-gated live integration smokes (backend, new `tests/live/`)
+## Layer 1 — Env-gated live integration smokes (backend, `tests/live/`) — IMPLEMENTED
 
-Each test **skips unless its env var is set**, so the default suite stays hermetic and CI stays
-offline. Add `@pytest.mark.skipif(not os.getenv(VAR), reason=...)`. Cost is a few cents total.
+Lives in `backend/tests/live/`. Gating is two-layered so the default suite stays hermetic and CI
+stays offline: (1) a **master switch** — every test skips unless `RUN_LIVE_SMOKE=1`; (2) **per-service
+fixtures** that skip when their credential is missing (read from the gitignored `backend/.env` and
+`backend/secrets/firebase-sa.json` — nothing hardcoded). The suite overrides the root conftest's
+emulator-only autouse fixtures, so it needs no emulator. Cost is a few cents total.
 
-| Smoke | Env gate(s) | Asserts |
-|---|---|---|
-| OpenAI command parse | `OPENAI_API_KEY` | `parse_user_command(ctx, "קיבלתי 2800 מנועה על עיצוב לוגו בביט")` → `intent == CREATE_RECEIPT`, `receipt.amount == 2800`, client נועה, payment `bit`. |
-| OpenAI vision | `OPENAI_API_KEY` + a permanent test image URL | `extract_expense(url)` → `ExpenseExtraction`, `amount` plausible, `currency in (ILS, None)`. |
-| Cloudinary round-trip | `CLOUDINARY_URL` | `upload_pdf(b"%PDF…", public_id="smoke_test/…")` → `secure_url` reachable via `fetch_asset()` returns identical bytes → then `destroy()` cleans up. |
-| Firestore indexes | real `GOOGLE_CLOUD_PROJECT` (non-`demo-`) + `GOOGLE_APPLICATION_CREDENTIALS`, indexes deployed | seed a receipt, run each compound query in `aggregation_service` (status+issueDate, +clientSnapshot.name, +issuedAt DESC) and the expenses query → **no `FAILED_PRECONDITION`**. |
-| `pendingActions` query | same as above | seed a `pendingActions` doc, call `_load_active_action` → no index error. *(Expected to pass without a composite index: it's `threadId == … AND status in […]`, equality+`in`, no `orderBy`. This smoke confirms that assumption against real Firestore.)* |
-| Firebase auth | a real `FIREBASE_ID_TOKEN` (mint via the Auth REST API with a test user) | `GET /api/businesses` with `Authorization: Bearer <token>` → `200`/`404`, not `401`/`500` (validates project ID, JWKS, audience). |
+Run it (from `backend/`):
+```bash
+RUN_LIVE_SMOKE=1 .venv/bin/python -m pytest tests/live -v
+```
 
-Run, e.g.: `OPENAI_API_KEY=… CLOUDINARY_URL=… .venv/bin/pytest tests/live -q`.
+| Smoke | File | Gate | Asserts |
+|---|---|---|---|
+| OpenAI command parse | `test_openai_live.py` | `OPENAI_API_KEY` | real parse of «קיבלתי 2800 מנועה על עיצוב לוגו בביט» → `CREATE_RECEIPT`, amount 2800, client נועה, payment `bit`. |
+| OpenAI vision | `test_openai_live.py` | `OPENAI_API_KEY` + `LIVE_RECEIPT_IMAGE_URL` | `extract_expense(url)` → `ExpenseExtraction`, amount > 0, `currency in (ILS, None)`. *(Opt-in: set `LIVE_RECEIPT_IMAGE_URL` to a real receipt photo; skips otherwise.)* |
+| Cloudinary round-trip | `test_cloudinary_live.py` | `CLOUDINARY_URL` | `upload_pdf` → `fetch_asset` returns identical bytes (proves delivery is enabled) → `destroy`. |
+| Cloudinary full chain | `test_cloudinary_live.py` | `CLOUDINARY_URL` | `render_pdf` (real WeasyPrint Hebrew PDF) → upload → fetch → `%PDF` + size match → `destroy`. |
+| Firestore indexes | `test_firestore_live.py` | real project + `secrets/firebase-sa.json` | seed a receipt+expense, run the four indexed `aggregation_service` queries (status+issueDate, +clientSnapshot.name, +issuedAt DESC, expenses status+expenseDate) → **no `FAILED_PRECONDITION`** → cleanup. |
+| Firebase auth | `test_firebase_auth_live.py` | real project + SA + web API key | mint custom token → exchange for a real ID token (Identity Toolkit) → `verify_id_token` → uid/aud/iss match → delete user. Exercises the exact `get_current_uid` path, no browser needed. |
+
+Status: **5 passing live, 1 (vision) opt-in.** Running the default `pytest` (emulator) leaves them
+skipped — verified **186 passed + 6 skipped**, no regression.
+
+> Note on `pendingActions`: `_load_active_action` filters `threadId == … AND status in […]` with no
+> `orderBy`. Equality + `in` is served by single-field indexes (merge join), so it needs **no**
+> composite index — confirmed by reasoning + the live index smoke run; no separate test required.
 
 ## Layer 2 — Frontend tests (new, recommended)
 
