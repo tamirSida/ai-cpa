@@ -1,7 +1,7 @@
 import pytest
 from fastapi import HTTPException
 
-from app.core.auth import get_owned_business
+from app.core.auth import get_current_uid, get_owned_business
 
 
 def test_owned_business_ok(db, make_business):
@@ -23,3 +23,10 @@ def test_owned_business_403(db, make_business):
         get_owned_business(businessId=biz["id"], uid="test-uid", db=db)
     assert exc.value.status_code == 403
     assert exc.value.detail["code"] == "forbidden"
+
+
+def test_get_current_uid_missing_credentials():
+    with pytest.raises(HTTPException) as exc:
+        get_current_uid(creds=None)
+    assert exc.value.status_code == 401
+    assert exc.value.detail["code"] == "unauthenticated"
