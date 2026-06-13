@@ -8,8 +8,13 @@ _PROFILE_FIELDS = [("business_name", "businessName"), ("owner_name", "ownerName"
                    ("phone", "phone"), ("email", "email")]
 
 def precheck(db, business: Business, year: int) -> PrecheckResult:
-    expenses = expense_service.list_expenses(db, business.id, year=year)
-    receipts = receipt_service.list_receipts(db, business.id, year=year)
+    # Expenses: a needs_review item is a GLOBAL readiness blocker — it usually has no
+    # expenseDate yet (extraction pending), so a year filter would silently drop the exact
+    # population that must be cleared. Scope to "in the report year OR still needs_review".
+    all_expenses = expense_service.list_expenses(db, business.id)
+    expenses = [e for e in all_expenses
+                if (e.expense_date or "").startswith(f"{year}-") or e.status == "needs_review"]
+    receipts = receipt_service.list_receipts(db, business.id, year=year)  # issued receipts always have issueDate
     needing_review = [e.id for e in expenses if e.status == "needs_review"]
     missing_images = [e.id for e in expenses if e.status in ("approved", "needs_review") and not e.image_url]
     uncategorized = [e.id for e in expenses if e.status != "rejected" and not e.category]

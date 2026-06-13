@@ -44,3 +44,18 @@ def test_precheck_threshold_warning(api, db, make_business):
     seed_receipt(db, biz["id"], amount=110000.0)
     d = api.post(f"/api/businesses/{biz['id']}/reports/annual/2026/precheck").json()
     assert d["thresholdWarning"] is True and d["totalRevenue"] == 110000.0
+
+
+def test_precheck_flags_dateless_needs_review_expense(db, make_business):
+    # a needs_review expense with NO expenseDate (pending extraction) must still be flagged,
+    # even when generating a specific year's report — it's a global readiness blocker.
+    from app.schemas.expense import ExpenseCreate
+    from app.services import expense_service, report_service
+    from app.schemas.business import Business
+    biz = make_business()
+    exp = expense_service.create_expense(
+        db, biz["id"], ExpenseCreate(image_url="https://x/y.jpg", cloudinary_public_id="x/y"),
+        source="image")  # needs_review, no amount/category/expenseDate
+    result = report_service.precheck(db, Business.model_validate(biz), 2026)
+    assert exp.id in result.expenses_needing_review
+    assert result.issues_count >= 1
