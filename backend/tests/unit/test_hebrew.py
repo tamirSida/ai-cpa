@@ -17,3 +17,9 @@ def test_confirmation_receipt():
 def test_query_answer_revenue():
     assert render_query_answer(QueryType.TOTAL_REVENUE, {"period": "THIS_YEAR", "total": 42300.0}) \
         == "ההכנסות שלך השנה הן ₪42,300."
+
+def test_confirmation_unknown_payment_method_no_keyerror():
+    from app.utils.hebrew import build_confirmation_message
+    msg = build_confirmation_message(IntentType.CREATE_RECEIPT,
+        {"client_name": "נ", "amount": 50.0, "description": "x", "payment_method": "wire"})
+    assert "wire" in msg  # off-enum value falls through, no KeyError

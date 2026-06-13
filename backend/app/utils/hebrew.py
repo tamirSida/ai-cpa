@@ -34,7 +34,7 @@ def build_confirmation_message(intent: IntentType, payload: dict) -> str:
         base = f"לאשר יצירת קבלה על {format_ils(payload['amount'])} ל{payload['client_name']} עבור {payload['description']}"
         pm = payload.get("payment_method")
         if pm and pm != "unknown":
-            return f"{base}, תשלום ב{PAYMENT_HE[pm]}?"
+            return f"{base}, תשלום ב{PAYMENT_HE.get(pm, pm)}?"  # .get: never KeyError on an off-enum value
         return f"{base}? (אמצעי תשלום לא צוין)"
     if intent == IntentType.CREATE_CONTACT:
         return f"לאשר יצירת איש קשר בשם {payload['name']}?"
