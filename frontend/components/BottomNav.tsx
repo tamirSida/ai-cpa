@@ -24,7 +24,7 @@ export default function BottomNav() {
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-white pb-safe">
       <div className="mx-auto flex h-16 max-w-lg md:max-w-3xl">
         {ITEMS.map(({ href, label, Icon }) => {
-          const active = pathname.startsWith(href);
+          const active = pathname === href || pathname.startsWith(`${href}/`);
           return (
             <Link
               key={href}

@@ -25,6 +25,7 @@ async function request<T>(
       Authorization: `Bearer ${token}`,
     },
   });
+  // Note: init.body must not be a ReadableStream; FormData/string/Blob are safe to retry.
   if (res.status === 401 && !forceRefresh) return request<T>(path, init, true);
   if (res.status === 401) {
     await auth.signOut();

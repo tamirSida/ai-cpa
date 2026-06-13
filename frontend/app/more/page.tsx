@@ -23,13 +23,16 @@ const LINKS = [
 export default function MorePage() {
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSignOut() {
+    setError(null);
     setSigningOut(true);
     try {
       await signOut(auth);
       router.replace("/login");
     } catch {
+      setError("ההתנתקות נכשלה, נסה שוב");
       setSigningOut(false);
     }
   }
@@ -61,6 +64,7 @@ export default function MorePage() {
           )}
           התנתקות
         </button>
+        {error && <p className="text-center text-sm text-destructive">{error}</p>}
       </div>
     </div>
   );
