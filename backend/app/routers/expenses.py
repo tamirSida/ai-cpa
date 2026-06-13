@@ -36,3 +36,20 @@ def approve(expense_id: str, business: Business = Depends(get_owned_business), d
 @router.post("/{expense_id}/reject", response_model=Expense)
 def reject(expense_id: str, business: Business = Depends(get_owned_business), db=Depends(get_db)):
     return expense_service.reject_expense(db, business.id, expense_id)
+
+@router.post("/upload", response_model=Expense, status_code=201)
+def upload_expense_image(file: UploadFile = File(...),
+                         business: Business = Depends(get_owned_business), db=Depends(get_db)):
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        api_error(400, "unsupported_file_type", "סוג הקובץ לא נתמך. אפשר להעלות JPG, PNG, HEIC או WebP")
+    data = file.file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        api_error(413, "file_too_large", "הקובץ גדול מדי (מקסימום 10MB)")
+    uploaded = cloudinary_service.upload_image(data, folder=f"expenses/{business.id}")
+    payload = ExpenseCreate(image_url=uploaded.secure_url, cloudinary_public_id=uploaded.public_id)
+    return expense_service.create_expense(db, business.id, payload, source="image")
+
+@router.post("/{expense_id}/extract", response_model=Expense)
+def extract(expense_id: str, business: Business = Depends(get_owned_business),
+            db=Depends(get_db), parser: CommandParser = Depends(get_command_parser)):
+    return expense_service.run_extraction(db, business.id, expense_id, parser)

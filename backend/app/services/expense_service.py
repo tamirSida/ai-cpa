@@ -1,9 +1,12 @@
 # backend/app/services/expense_service.py
+import cloudinary.utils
 from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 from app.core.errors import api_error
-from app.schemas.expense import Expense, ExpenseCreate, ExpensePatch
+from app.schemas.ai_commands import ExpenseExtraction
+from app.schemas.expense import Expense, ExpenseCreate, ExpensePatch, VALID_CATEGORIES
 from app.services.ledger_service import record_event
+from app.services.openai_service import ParserFailure
 from app.utils.dates import now_il, parse_iso_date
 from app.utils.money import round_ils
 
@@ -119,5 +122,31 @@ def update_expense(db, business_id: str, expense_id: str, patch: ExpensePatch) -
     if "businessUsePercent" in changes:
         changes["businessUsePercent"] = _clamp_pct(changes["businessUsePercent"])
     changes["updatedAt"] = now_il()
+    ref.update(changes); data.update(changes)
+    return Expense.model_validate(data)
+
+def build_jpg_delivery_url(public_id: str) -> str:
+    # f_jpg transformation: HEIC/WebP-safe JPEG delivery for the vision call (VERIFIED FACTS)
+    url, _ = cloudinary.utils.cloudinary_url(public_id, resource_type="image", fetch_format="jpg", secure=True)
+    return url
+
+def run_extraction(db, business_id: str, expense_id: str, parser) -> Expense:
+    ref, data = _load(db, business_id, expense_id)
+    if data["status"] != "needs_review":
+        api_error(409, "invalid_expense_status", "אפשר להריץ זיהוי רק על הוצאה בסטטוס לבדיקה")
+    if not data.get("cloudinaryPublicId"):
+        api_error(400, "no_image", "אין תמונה מצורפת להוצאה הזו")
+    result = parser.extract_expense(build_jpg_delivery_url(data["cloudinaryPublicId"]))
+    if isinstance(result, ParserFailure):
+        api_error(502, "extraction_failed", "לא הצלחתי לחלץ נתונים מהתמונה, אפשר להזין ידנית")
+    changes: dict = {}
+    if result.supplier_name: changes["supplierName"] = result.supplier_name
+    if result.amount is not None: changes["amount"] = round_ils(result.amount)
+    if result.expense_date and parse_iso_date(result.expense_date): changes["expenseDate"] = result.expense_date
+    if result.category in VALID_CATEGORIES: changes["category"] = result.category  # invalid LLM value -> dropped
+    if result.description: changes["description"] = result.description
+    if result.ocr_text: changes["ocrText"] = result.ocr_text
+    if result.confidence is not None: changes["extractionConfidence"] = result.confidence
+    changes["updatedAt"] = now_il()   # status untouched: stays needs_review
     ref.update(changes); data.update(changes)
     return Expense.model_validate(data)
