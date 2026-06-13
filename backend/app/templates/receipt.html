@@ -2,6 +2,7 @@
 {% from "macros.html" import ltr %}
 {% block content %}
 <h1>קבלה {{ ltr(receipt.receiptNumber) }}</h1>
+<p class="orig">מקור</p>
 <p><strong>{{ business.businessName }}</strong><br>
 {{ business.ownerName }} · עוסק פטור מס׳ {{ ltr(business.businessIdNumber) }}<br>
 {% if business.address %}{{ business.address }}<br>{% endif %}
@@ -12,7 +13,14 @@
 {% if receipt.clientSnapshot.address %}<br>{{ receipt.clientSnapshot.address }}{% endif %}</td></tr>
 <tr><td>תיאור</td><td>{{ receipt.description }}</td></tr>
 <tr><td>אמצעי תשלום</td><td>{{ payment_labels.get(receipt.paymentMethod, receipt.paymentMethod) }}</td></tr>
+{% if receipt.paymentMethod == "check" and receipt.checkDetails %}
+<tr><td>פרטי המחאה</td><td>מס׳ {{ ltr(receipt.checkDetails.number) }} · {{ receipt.checkDetails.bank }} · סניף {{ ltr(receipt.checkDetails.branch) }} · פירעון {{ ltr(receipt.checkDetails.dueDate) }}</td></tr>
+{% elif receipt.paymentMethod == "bank_transfer" and business.bankAccount %}
+<tr><td>חשבון לזיכוי</td><td>{{ business.bankName }} · סניף {{ ltr(business.bankBranch) }} · חשבון {{ ltr(business.bankAccount) }}</td></tr>
+{% endif %}
 <tr><td>סכום</td><td class="amount">{{ ltr(receipt.amount | ils) }}</td></tr>
+<tr><td>סה״כ שולם</td><td class="amount">{{ ltr(receipt.amount | ils) }}</td></tr>
 </table>
-<p class="muted">עוסק פטור — אינו גובה מע״מ. מסמך זה מהווה קבלה בלבד ואינו חשבונית מס.</p>
+<p class="muted">עוסק פטור — אינו גובה מע״מ. מסמך זה מהווה קבלה בלבד ואינו חשבונית מס.<br>
+{% if signed %}מסמך ממוחשב חתום דיגיטלית.{% else %}מסמך ממוחשב — נדרשת חתימה ידנית על העותק הנמסר.{% endif %}</p>
 {% endblock %}
