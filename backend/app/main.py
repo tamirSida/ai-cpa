@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
 from app.core.firebase import init_firebase
-from app.routers import businesses, chat, clients, dashboard, expenses, receipts
+from app.routers import businesses, chat, clients, dashboard, expenses, receipts, reports
 
 settings = get_settings()
 
@@ -33,6 +33,7 @@ app.include_router(receipts.router, prefix="/api")
 app.include_router(expenses.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
+app.include_router(reports.router, prefix="/api")
 
 
 @app.get("/healthz")

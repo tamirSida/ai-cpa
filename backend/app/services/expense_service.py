@@ -103,7 +103,7 @@ def list_expenses(db, business_id: str, status: str | None = None, year: int | N
     q = _expenses(db, business_id)
     if status is not None:
         q = q.where(filter=FieldFilter("status", "==", status))
-    items = [s.to_dict() for s in q.stream()]
+    items = [s.to_dict() | {"id": s.id} for s in q.stream()]
     if year is not None:  # filter in Python: avoids composite index + emulator/prod drift; MVP volumes are tiny
         items = [d for d in items if (d.get("expenseDate") or "").startswith(f"{year}-")]
     items.sort(key=lambda d: d["createdAt"], reverse=True)

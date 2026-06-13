@@ -124,7 +124,7 @@ def list_receipts(db, business_id: str, status: str | None = None, year: int | N
     q = _col(db, business_id)
     if status:
         q = q.where(filter=FieldFilter("status", "==", status))
-    receipts = [Receipt.model_validate(d.to_dict()) for d in q.stream()]
+    receipts = [Receipt.model_validate(d.to_dict() | {"id": d.id}) for d in q.stream()]
     if year:  # issueDate is an ISO string; year filtered in Python to avoid a composite index at MVP scale
         receipts = [r for r in receipts if r.issue_date.startswith(f"{year}-")]
     return sorted(receipts, key=lambda r: r.created_at, reverse=True)
