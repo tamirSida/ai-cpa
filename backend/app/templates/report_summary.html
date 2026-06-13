@@ -1,0 +1,29 @@
+<!-- backend/app/templates/report_summary.html -->
+<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="utf-8"><style>
+@font-face { font-family: "Noto Sans Hebrew"; src: url("../assets/fonts/NotoSansHebrew-Regular.ttf"); font-weight: 400; }
+@font-face { font-family: "Noto Sans Hebrew"; src: url("../assets/fonts/NotoSansHebrew-Bold.ttf"); font-weight: 700; }
+@font-face { font-family: "Noto Sans Hebrew LTR"; src: url("../assets/fonts/NotoSansHebrew-Regular.ttf"); font-weight: 400; }
+span[dir="ltr"] { font-family: "Noto Sans Hebrew LTR", sans-serif; }
+@page { size: A4; margin: 2cm; }
+body { font-family: 'Noto Sans Hebrew', sans-serif; direction: rtl; font-size: 12px; color: #111; }
+h1 { font-size: 20px; margin-bottom: 4px; } h2 { font-size: 14px; margin-top: 20px; }
+table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+th, td { border: 1px solid #999; padding: 4px 8px; text-align: right; }
+.muted { color: #555; font-size: 10px; }
+</style></head><body>
+<h1>סיכום שנתי <span dir="ltr">{{ year }}</span> — {{ business.businessName }}</h1>
+<p class="muted">בעל/ת העסק: {{ business.ownerName }} · עוסק פטור · מס׳ עוסק: <span dir="ltr">{{ business.businessIdNumber }}</span></p>
+<h2>סיכום</h2>
+<table>
+<tr><th>סה״כ הכנסות</th><td><span dir="ltr">{{ total_income }}</span></td></tr>
+<tr><th>סה״כ הוצאות מוכרות (לפי אחוז שימוש עסקי)</th><td><span dir="ltr">{{ total_expenses }}</span></td></tr>
+<tr><th>רווח משוער</th><td><span dir="ltr">{{ estimated_profit }}</span></td></tr>
+</table>
+<h2>הכנסות לפי חודש</h2>
+<table><tr><th>חודש</th><th>הכנסה</th></tr>
+{% for m in monthly %}<tr><td>{{ m.label }}</td><td><span dir="ltr">{{ m.amount }}</span></td></tr>{% endfor %}</table>
+<h2>הוצאות לפי קטגוריה</h2>
+<table><tr><th>קטגוריה</th><th>סכום</th></tr>
+{% for c in categories %}<tr><td>{{ c.label }}</td><td><span dir="ltr">{{ c.amount }}</span></td></tr>{% endfor %}</table>
+<p class="muted">דוח זה אינו דיווח רשמי לרשות המסים. הופק על ידי מערכת הנהלת החשבונות.</p>
+</body></html>
