@@ -30,3 +30,9 @@ def test_find_by_name_case_insensitive_contains(db, make_business):
     create_client(db, biz["id"], ClientCreate(name="Eden Studio"))
     assert [c.name for c in find_clients_by_name(db, biz["id"], "eden")] == ["Eden Studio"]
     assert find_clients_by_name(db, biz["id"], "נועה") == []
+
+
+def test_patch_missing_client_404(api, make_business):
+    biz = make_business()
+    r = api.patch(f"/api/businesses/{biz['id']}/clients/nope", json={"name": "X"})
+    assert r.status_code == 404 and r.json()["detail"]["code"] == "client_not_found"

@@ -30,6 +30,8 @@ def update_client(db, business_id: str, client_id: str, patch: ClientPatch) -> C
     ref = _col(db, business_id).document(client_id)
     if not ref.get().exists:
         api_error(404, "client_not_found", "לקוח לא נמצא")
+    # exclude_none means {"phone": null} is ignored, not a field-clear; clearing
+    # a field would need an explicit sentinel — out of MVP scope.
     data = patch.model_dump(by_alias=True, exclude_none=True)
     if "name" in data:
         data["nameLower"] = data["name"].strip().lower()
