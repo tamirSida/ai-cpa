@@ -10,10 +10,11 @@ from app.schemas.chat import ActionView, ChatTurnResult, ExecutionResult
 from app.schemas.client import ClientCreate
 from app.schemas.receipt import ReceiptDraftCreate
 from app.services import aggregation_service as agg
-from app.services import client_service, receipt_service
+from app.services import client_service, receipt_service, report_service
 from app.utils.dates import now_il, resolve_time_range, today_il, year_bounds
 from app.utils.hebrew import (CANCEL_WORDS, CONFIRM_WORDS, build_confirmation_message,
-                              build_followup_question, normalize, render_query_answer)
+                              build_followup_question, normalize, render_precheck_summary,
+                              render_query_answer)
 from app.utils.money import round_ils
 from app.core.errors import api_error
 
@@ -257,6 +258,12 @@ def handle_message(db, parser, business: Business, thread_id: str, text: str) ->
         save_message(db, business.id, thread_id, "assistant", reply,
                      action_id=active[0] if active else None, parsed_intent=cmd.model_dump(mode="json"))
         return ChatTurnResult(assistant_text=reply, action=_action_view(*active) if active else None)
+    if cmd.intent == IntentType.GENERATE_ANNUAL_REPORT:                    # answers immediately, no pending action
+        result = report_service.precheck(db, business, now_il().year)
+        reply = render_precheck_summary(result)
+        save_message(db, business.id, thread_id, "assistant", reply,
+                     parsed_intent=cmd.model_dump(mode="json"))
+        return ChatTurnResult(assistant_text=reply, action=None)
     incoming = _payload_for(cmd.intent, cmd)
     if active and active[1]["type"] == cmd.intent.value:
         payload, action_id = merge_payload(active[1]["payload"], incoming, cmd.intent), active[0]

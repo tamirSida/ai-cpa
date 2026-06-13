@@ -66,3 +66,22 @@ def render_query_answer(query_type, data: dict) -> str:
                f"({data['pct']}%). נותרו {format_ils(data['remaining'])}.")
         return msg + (" שים/י לב: את/ה מתקרב/ת לתקרת עוסק פטור." if data["warning"] else "")
     return "לא הצלחתי להבין את השאלה, אפשר לנסח שוב?"
+
+def render_precheck_summary(result) -> str:
+    parts = []
+    if result.expenses_needing_review:
+        parts.append(f"{len(result.expenses_needing_review)} הוצאות שדורשות בדיקה")
+    if result.expenses_missing_images:
+        parts.append(f"{len(result.expenses_missing_images)} הוצאות ללא קבלה מצולמת")
+    if result.uncategorized_expenses:
+        parts.append(f"{len(result.uncategorized_expenses)} הוצאות ללא קטגוריה")
+    if result.receipts_missing_pdf:
+        parts.append(f"{len(result.receipts_missing_pdf)} קבלות ללא PDF")
+    if result.missing_business_fields:
+        parts.append("פרטי עסק חסרים: " + ", ".join(result.missing_business_fields))
+    total = format_ils(result.total_revenue)
+    if not parts:
+        return (f"הכל מוכן! סך ההכנסות לשנת {result.year}: {total}. "
+                "להורדת החבילה לרואה החשבון: /annual-report")
+    return ("לפני הפקת הדוח כדאי לטפל ב: " + "; ".join(parts) +
+            f". סך ההכנסות עד כה: {total}. להמשך ולהורדה: /annual-report")
