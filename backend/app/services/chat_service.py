@@ -1,5 +1,18 @@
+import uuid
 from enum import Enum
-from app.schemas.ai_commands import IntentType
+from datetime import timedelta
+from google.cloud.firestore_v1.base_query import FieldFilter
+from app.schemas.ai_commands import (IntentType, ParsedUserCommand, ParserFailure, QueryPayload,
+                                     QueryType, TimePreset, TimeRange)
+from app.schemas.business import Business
+from app.schemas.chat import ActionView, ChatTurnResult, ExecutionResult
+from app.services import aggregation_service as agg
+from app.services import client_service, receipt_service
+from app.utils.dates import now_il, resolve_time_range, today_il, year_bounds
+from app.utils.hebrew import (CANCEL_WORDS, CONFIRM_WORDS, build_confirmation_message,
+                              build_followup_question, normalize, render_query_answer)
+from app.utils.money import round_ils
+from app.core.errors import api_error
 
 def merge_payload(existing: dict, incoming: dict, intent: IntentType) -> dict:
     merged = dict(existing)
@@ -29,3 +42,155 @@ def compute_missing_fields(intent: IntentType, payload: dict) -> list[str]:
         if not isinstance(amount, (int, float)) or isinstance(amount, bool) or amount <= 0:
             missing.append("amount")
     return missing
+
+FALLBACK = "לא הצלחתי להבין, אפשר לנסח שוב?"
+ACTIVE_STATUSES = ("collecting_fields", "pending_confirmation")
+STALE_AFTER = timedelta(hours=24)
+CREATE_INTENTS = {IntentType.CREATE_RECEIPT, IntentType.CREATE_CONTACT,
+                  IntentType.CREATE_EXPENSE, IntentType.GENERATE_ANNUAL_REPORT}
+
+def _biz_ref(db, bid): return db.collection("businesses").document(bid)
+def _actions_col(db, bid): return _biz_ref(db, bid).collection("pendingActions")
+def _msgs_col(db, bid, tid): return _biz_ref(db, bid).collection("chatThreads").document(tid).collection("messages")
+
+def save_message(db, business_id, thread_id, role, text, action_id=None, parsed_intent=None) -> str:
+    _biz_ref(db, business_id).collection("chatThreads").document(thread_id).set({"updatedAt": now_il()}, merge=True)
+    ref = _msgs_col(db, business_id, thread_id).document()
+    ref.set({"businessId": business_id, "threadId": thread_id, "role": role, "text": text,
+             "actionId": action_id, "parsedIntent": parsed_intent, "createdAt": now_il()})
+    return ref.id
+
+def _load_active_action(db, business_id, thread_id):
+    q = _actions_col(db, business_id).where(filter=FieldFilter("threadId", "==", thread_id)) \
+                                     .where(filter=FieldFilter("status", "in", list(ACTIVE_STATUSES)))
+    for doc in q.stream():
+        data = doc.to_dict()
+        if now_il() - data["updatedAt"] > STALE_AFTER:
+            doc.reference.update({"status": "cancelled", "cancellationReason": "expired", "updatedAt": now_il()})
+            continue
+        return doc.id, data
+    return None
+
+def _action_view(action_id, data) -> ActionView:
+    return ActionView(id=action_id, type=data["type"], status=data["status"],
+                      payload=data["payload"], missing_fields=data["missingFields"])
+
+def _current_question(data) -> str:
+    intent = IntentType(data["type"])
+    if data["status"] == "pending_confirmation":
+        return build_confirmation_message(intent, data["payload"])
+    return build_followup_question(intent, data["missingFields"])
+
+def _build_context(db, business: Business, thread_id, text, active) -> dict:
+    matched = client_service.find_clients_by_name(db, business.id, text)
+    recent = client_service.list_clients(db, business.id)[:10]
+    clients, seen = [], set()
+    for c in matched + recent:
+        if c.id not in seen:
+            seen.add(c.id); clients.append({"id": c.id, "name": c.name})
+    msgs = [d.to_dict() for d in _msgs_col(db, business.id, thread_id)
+            .order_by("createdAt", direction="DESCENDING").limit(10).stream()][::-1]
+    year = today_il().year
+    return {"business": {"business_type": "osek_patur", "currency": "ILS", "current_year": year},
+            "known_clients": clients[:20],
+            # doc §8 step 2: current-year summary travels with every chat turn
+            "current_year_summary": {"total_revenue": agg.total_revenue(db, business.id, *year_bounds(year)),
+                                     "total_expenses": agg.total_expenses(db, business.id, *year_bounds(year))},
+            "pending_action": ({"type": active[1]["type"], "missing_fields": active[1]["missingFields"],
+                                "payload": active[1]["payload"]} if active else None),
+            "recent_messages": [{"role": m["role"], "text": m["text"]} for m in msgs]}
+
+def _payload_for(intent, cmd: ParsedUserCommand) -> dict:
+    if intent == IntentType.CREATE_RECEIPT and cmd.receipt: return cmd.receipt.model_dump(mode="json")
+    if intent == IntentType.CREATE_CONTACT and cmd.contact: return cmd.contact.model_dump(mode="json")
+    if intent == IntentType.CREATE_EXPENSE and cmd.expense: return cmd.expense.model_dump(mode="json")
+    if intent == IntentType.GENERATE_ANNUAL_REPORT: return {"year": today_il().year}
+    return {}
+
+def _upsert_action(db, business_id, thread_id, action_id, intent, status, payload, missing) -> str:
+    if action_id is None:
+        ref = _actions_col(db, business_id).document(uuid.uuid4().hex)
+        ref.set({"businessId": business_id, "threadId": thread_id, "type": intent.value, "status": status,
+                 "payload": payload, "missingFields": missing, "createdAt": now_il(), "updatedAt": now_il()})
+        return ref.id
+    _actions_col(db, business_id).document(action_id).update(
+        {"status": status, "payload": payload, "missingFields": missing, "updatedAt": now_il()})
+    return action_id
+
+def cancel_action(db, business_id, action_id, reason="cancelled") -> None:
+    _actions_col(db, business_id).document(action_id).update(
+        {"status": "cancelled", "cancellationReason": reason, "updatedAt": now_il()})
+
+def confirm_action(db, parser, business, action_id):
+    raise NotImplementedError  # Task 3.7
+
+def handle_message(db, parser, business: Business, thread_id: str, text: str) -> ChatTurnResult:
+    save_message(db, business.id, thread_id, "user", text)
+    active = _load_active_action(db, business.id, thread_id)
+    if active and active[1]["status"] == "pending_confirmation":          # fast path: NO LLM call
+        norm = normalize(text)
+        if norm in CONFIRM_WORDS:
+            res = confirm_action(db, parser, business, active[0])
+            return ChatTurnResult(assistant_text=res.assistant_text, action=res.action, result=res.result)
+        if norm in CANCEL_WORDS:
+            cancel_action(db, business.id, active[0])
+            reply = "הפעולה בוטלה."
+            save_message(db, business.id, thread_id, "assistant", reply, action_id=active[0])
+            return ChatTurnResult(assistant_text=reply, action=None)
+    cmd = parser.parse_user_command(_build_context(db, business, thread_id, text, active), text)
+    if isinstance(cmd, ParserFailure) or cmd.intent == IntentType.UNKNOWN:
+        reply = FALLBACK + (("\n" + _current_question(active[1])) if active else "")
+        save_message(db, business.id, thread_id, "assistant", reply)
+        return ChatTurnResult(assistant_text=reply, action=_action_view(*active) if active else None)
+    if cmd.intent == IntentType.QUERY:                                     # queries never create actions
+        reply = _answer_query(db, business, cmd.query)
+        if active: reply = f"{reply}\n\n{_current_question(active[1])}"
+        save_message(db, business.id, thread_id, "assistant", reply,
+                     action_id=active[0] if active else None, parsed_intent=cmd.model_dump(mode="json"))
+        return ChatTurnResult(assistant_text=reply, action=_action_view(*active) if active else None)
+    incoming = _payload_for(cmd.intent, cmd)
+    if active and active[1]["type"] == cmd.intent.value:
+        payload, action_id = merge_payload(active[1]["payload"], incoming, cmd.intent), active[0]
+    else:
+        if active: cancel_action(db, business.id, active[0], reason="superseded")
+        payload, action_id = merge_payload({}, incoming, cmd.intent), None
+    missing = compute_missing_fields(cmd.intent, payload)
+    status = "collecting_fields" if missing else "pending_confirmation"
+    reply = build_followup_question(cmd.intent, missing) if missing else build_confirmation_message(cmd.intent, payload)
+    action_id = _upsert_action(db, business.id, thread_id, action_id, cmd.intent, status, payload, missing)
+    save_message(db, business.id, thread_id, "assistant", reply, action_id=action_id,
+                 parsed_intent=cmd.model_dump(mode="json"))
+    return ChatTurnResult(assistant_text=reply, action=ActionView(
+        id=action_id, type=cmd.intent.value, status=status, payload=payload, missing_fields=missing))
+
+def _answer_query(db, business: Business, qp) -> str:
+    qp = qp or QueryPayload(); qtype = qp.type or QueryType.UNKNOWN
+    tr = qp.time_range or TimeRange(preset=TimePreset.THIS_YEAR)
+    if tr.preset is None: tr.preset = TimePreset.THIS_YEAR                 # server default
+    start, end = resolve_time_range(tr); period = tr.preset.value; bid = business.id
+    year = start.year if start else today_il().year
+    if qtype == QueryType.TOTAL_REVENUE:
+        return render_query_answer(qtype, {"period": period, "total": agg.total_revenue(db, bid, start, end)})
+    if qtype == QueryType.TOTAL_EXPENSES:
+        return render_query_answer(qtype, {"period": period, "total": agg.total_expenses(db, bid, start, end)})
+    if qtype == QueryType.ESTIMATED_PROFIT:
+        rev, exp = agg.total_revenue(db, bid, start, end), agg.total_expenses(db, bid, start, end)
+        return render_query_answer(qtype, {"period": period, "profit": round_ils(rev - exp), "revenue": rev, "expenses": exp})
+    if qtype == QueryType.CLIENT_REVENUE:
+        if not qp.client_name: return "לאיזה לקוח הכוונה?"
+        return render_query_answer(qtype, {"client_name": qp.client_name,
+                                           "total": agg.client_revenue(db, bid, qp.client_name)})
+    if qtype == QueryType.CONTACT_EXISTS:
+        if not qp.client_name: return "לאיזה איש קשר הכוונה?"
+        exists = any(c.name.strip() == qp.client_name.strip()
+                     for c in client_service.find_clients_by_name(db, bid, qp.client_name))
+        return render_query_answer(qtype, {"client_name": qp.client_name, "exists": exists})
+    if qtype == QueryType.RECEIPTS_COUNT:
+        return render_query_answer(qtype, {"period": period, "count": agg.receipts_count(db, bid, year)})
+    if qtype == QueryType.EXPENSES_BY_CATEGORY:
+        return render_query_answer(qtype, {"period": period, "by_category": agg.expenses_by_category(db, bid, year)})
+    if qtype == QueryType.OSEK_PATUR_LIMIT_STATUS:
+        ts = agg.threshold_status(db, business, today_il().year)
+        return render_query_answer(qtype, {"total": ts.total, "limit": ts.limit, "pct": ts.pct,
+                                           "remaining": round_ils(max(ts.limit - ts.total, 0.0)), "warning": ts.warning})
+    return render_query_answer(QueryType.UNKNOWN, {})
