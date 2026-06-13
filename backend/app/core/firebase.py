@@ -1,4 +1,7 @@
+import os
+
 import firebase_admin
+from firebase_admin import credentials
 from google.cloud import firestore
 
 from app.core.config import get_settings
@@ -7,15 +10,29 @@ _db: firestore.Client | None = None
 
 
 def init_firebase() -> None:
-    """Idempotent firebase-admin init. Wired into app startup in Phase 1."""
-    if not firebase_admin._apps:
-        firebase_admin.initialize_app()
+    if firebase_admin._apps:
+        return
+    if os.environ.get("FIRESTORE_EMULATOR_HOST"):
+        # Tests/emulator: no service account; project id from env (demo-* = offline).
+        firebase_admin.initialize_app(
+            options={"projectId": os.environ.get("GOOGLE_CLOUD_PROJECT", "demo-tax-test")}
+        )
+        return
+    settings = get_settings()
+    cred = credentials.Certificate(settings.google_application_credentials)
+    firebase_admin.initialize_app(cred, {"projectId": settings.firebase_project_id})
 
 
 def get_db() -> firestore.Client:
-    """Module-cached sync client. Honors FIRESTORE_EMULATOR_HOST automatically
-    (google-cloud-firestore switches to AnonymousCredentials when it is set)."""
+    """Module-cached SYNC Firestore client. With FIRESTORE_EMULATOR_HOST set,
+    google-cloud-firestore auto-applies AnonymousCredentials."""
     global _db
     if _db is None:
-        _db = firestore.Client(project=get_settings().firebase_project_id)
+        if os.environ.get("FIRESTORE_EMULATOR_HOST"):
+            _db = firestore.Client(project=os.environ.get("GOOGLE_CLOUD_PROJECT", "demo-tax-test"))
+        else:
+            settings = get_settings()
+            _db = firestore.Client.from_service_account_json(
+                settings.google_application_credentials, project=settings.firebase_project_id
+            )
     return _db
