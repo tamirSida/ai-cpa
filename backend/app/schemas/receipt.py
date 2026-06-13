@@ -13,6 +13,12 @@ class ClientSnapshot(CamelModel):
     tax_id: str | None = None
     address: str | None = None
 
+class CheckDetails(CamelModel):
+    number: str
+    bank: str
+    branch: str
+    due_date: str  # ISO YYYY-MM-DD; wire alias dueDate
+
 class ReceiptDraftCreate(CamelModel):
     client_id: str | None = None
     client_name: str | None = None
@@ -20,6 +26,7 @@ class ReceiptDraftCreate(CamelModel):
     currency: Literal["ILS"] = "ILS"
     description: str
     payment_method: PaymentMethod = "unknown"
+    check_details: CheckDetails | None = None
     issue_date: str | None = None  # ISO YYYY-MM-DD; defaults to today_il()
 
 class ReceiptCancelRequest(CamelModel):
@@ -37,6 +44,7 @@ class Receipt(CamelModel):
     currency: Literal["ILS"] = "ILS"
     payment_method: PaymentMethod
     description: str
+    check_details: CheckDetails | None = None
     client_snapshot: ClientSnapshot
     pdf_url: str | None = None
     cloudinary_public_id: str | None = None
