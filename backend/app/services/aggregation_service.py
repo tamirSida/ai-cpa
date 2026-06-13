@@ -80,23 +80,31 @@ def receipts_count(db, business_id: str, year: int) -> int:
 # Expense aggregations
 # ---------------------------------------------------------------------------
 
+def _weighted_amount(e: dict) -> float:
+    """Deductible (tax-relevant) amount: raw amount × businessUsePercent / 100."""
+    pct = e.get("businessUsePercent")
+    if pct is None:
+        pct = 100
+    return round_ils(e["amount"] * pct / 100)
+
+
 def total_expenses(db, business_id: str, start: Optional[date], end: Optional[date]) -> float:
-    """Sum of approved expense amounts in the given date range. Empty → 0.0."""
+    """Sum of approved expense amounts weighted by businessUsePercent. Empty → 0.0."""
     approved = _approved_expenses(db, business_id, start, end)
     if not approved:
         return 0.0
-    return round_ils(sum(e["amount"] for e in approved))
+    return round_ils(sum(_weighted_amount(e) for e in approved))
 
 
 def expenses_by_category(db, business_id: str, year: int) -> dict[str, float]:
-    """Approved expenses in the given year grouped by category. Empty → {}."""
+    """Approved expenses in the given year grouped by category, weighted by businessUsePercent. Empty → {}."""
     approved = _approved_expenses(db, business_id, date(year, 1, 1), date(year, 12, 31))
     if not approved:
         return {}
     totals: dict[str, float] = {}
     for e in approved:
         cat = e.get("category") or "other"
-        totals[cat] = totals.get(cat, 0.0) + e["amount"]
+        totals[cat] = totals.get(cat, 0.0) + _weighted_amount(e)
     return {cat: round_ils(v) for cat, v in totals.items()}
 
 
