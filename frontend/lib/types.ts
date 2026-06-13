@@ -8,6 +8,9 @@ export interface Business {
   address?: string;
   phone?: string;
   email?: string;
+  bankName?: string;
+  bankBranch?: string;
+  bankAccount?: string;
   receiptPrefix: string;
   nextReceiptNumber: number;
   annualLimit?: number;
@@ -17,7 +20,7 @@ export type ReceiptStatus = "draft" | "issued" | "cancelled";
 export type PaymentMethod = "cash" | "bank_transfer" | "bit" | "paybox" | "credit_card" | "check" | "other" | "unknown";
 export interface Client { id: string; businessId: string; name: string; phone?: string; email?: string; companyName?: string; taxId?: string; address?: string; notes?: string; }
 export interface ClientSnapshot { name: string; phone?: string; email?: string; taxId?: string; address?: string; }
-export interface Receipt { id: string; businessId: string; clientId?: string; receiptNumber?: string; sequenceNumber?: number; status: ReceiptStatus; issueDate: string; amount: number; currency: "ILS"; paymentMethod: PaymentMethod; description: string; clientSnapshot: ClientSnapshot; pdfUrl?: string; cloudinaryPublicId?: string; cancellationReason?: string; }
+export interface Receipt { id: string; businessId: string; clientId?: string; receiptNumber?: string; sequenceNumber?: number; status: ReceiptStatus; issueDate: string; amount: number; currency: "ILS"; paymentMethod: PaymentMethod; description: string; clientSnapshot: ClientSnapshot; checkDetails?: { number: string; bank: string; branch: string; dueDate: string }; pdfUrl?: string; cloudinaryPublicId?: string; cancellationReason?: string; }
 export const PAYMENT_LABELS: Record<PaymentMethod, string> = { cash: "מזומן", bank_transfer: "העברה בנקאית", bit: "ביט", paybox: "פייבוקס", credit_card: "כרטיס אשראי", check: "צ'ק", other: "אחר", unknown: "לא צוין" };
 
 export interface ChatMessage {
@@ -91,5 +94,5 @@ export interface DashboardResponse {
 export interface PrecheckResult {
   year: number; expensesNeedingReview: string[]; expensesMissingImages: string[];
   uncategorizedExpenses: string[]; receiptsMissingPdf: string[]; cancelledReceipts: string[];
-  missingBusinessFields: string[]; totalRevenue: number; thresholdWarning: boolean; issuesCount: number;
+  missingBusinessFields: string[]; receiptsMissingPayerAddress: string[]; totalRevenue: number; thresholdWarning: boolean; issuesCount: number;
 }
