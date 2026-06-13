@@ -9,7 +9,11 @@ export default function DashboardCards({ data }: { data: DashboardResponse }) {
     { label: "הכנסות השנה", value: formatILS(totals.incomeThisYear) },
     { label: "הכנסות החודש", value: formatILS(totals.incomeThisMonth) },
     { label: "הוצאות מוכרות", value: formatILS(totals.expensesThisYear) },
-    { label: "רווח משוער", value: formatILS(totals.estimatedProfit) },
+    {
+      label: "רווח משוער",
+      value: formatILS(totals.estimatedProfit),
+      valueClassName: totals.estimatedProfit < 0 ? "text-destructive" : undefined,
+    },
   ];
   return (
     <div className="space-y-3">
@@ -17,7 +21,7 @@ export default function DashboardCards({ data }: { data: DashboardResponse }) {
         {cards.map((c) => (
           <div key={c.label} className="rounded-2xl border border-border bg-white p-4">
             <p className="text-sm text-foreground/60">{c.label}</p>
-            <p className="tnum mt-1 text-2xl font-semibold" dir="ltr">{c.value}</p>
+            <p className={`tnum mt-1 text-2xl font-semibold ${c.valueClassName ?? ""}`} dir="ltr">{c.value}</p>
           </div>
         ))}
       </div>

@@ -31,6 +31,7 @@ export default function DashboardPage() {
   const { user, loading } = useAuth();
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (loading || !user) return;
@@ -38,17 +39,31 @@ export default function DashboardPage() {
       .then((biz) => api<DashboardResponse>(`/businesses/${biz.id}/dashboard`))
       .then(setData)
       .catch((e) => setError(e instanceof ApiError ? e.message : "שגיאה בטעינת הנתונים"));
-  }, [loading, user]);
+  }, [loading, user, reloadKey]);
 
   if (loading || (!data && !error)) return <DashboardSkeleton />;
   if (error)
     return (
       <div className="p-4">
-        <div className="rounded-2xl border border-border bg-white p-6 text-center text-destructive">{error}</div>
+        <div className="rounded-2xl border border-border bg-white p-6 text-center">
+          <p className="text-destructive">{error}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setData(null);
+              setReloadKey((k) => k + 1);
+            }}
+            className="mt-4 inline-flex min-h-12 items-center justify-center rounded-xl bg-primary px-5 font-medium text-on-primary transition-transform duration-150 active:scale-[0.98]"
+          >
+            נסה שנית
+          </button>
+        </div>
       </div>
     );
   const d = data!;
-  const isEmpty = d.counts.receiptsCount === 0 && d.recentExpenses.length === 0;
+  const isEmpty =
+    d.counts.receiptsCount === 0 && d.recentExpenses.length === 0 && d.totals.incomeThisYear === 0;
 
   return (
     <div className="space-y-4 p-4">

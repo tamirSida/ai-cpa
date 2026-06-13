@@ -22,6 +22,7 @@ export default function ThresholdProgress({ threshold }: { threshold: ThresholdS
       <div
         className="mt-2 h-3 w-full overflow-hidden rounded-full bg-muted"
         role="progressbar"
+        aria-label="תקרת עוסק פטור"
         aria-valuenow={Math.round(threshold.pct)}
         aria-valuemin={0}
         aria-valuemax={100}
