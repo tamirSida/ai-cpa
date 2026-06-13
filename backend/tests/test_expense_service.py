@@ -102,6 +102,13 @@ def test_update_invalid_date_422(db, make_business):
         expense_service.update_expense(db, biz["id"], exp.id, ExpensePatch(expense_date="13/06/2026"))
     assert e.value.status_code == 422 and e.value.detail["code"] == "invalid_date"
 
+def test_update_empty_patch_422(db, make_business):
+    biz = make_business()
+    exp = expense_service.create_expense(db, biz["id"], _payload(category=None), source="chat")
+    with pytest.raises(HTTPException) as e:
+        expense_service.update_expense(db, biz["id"], exp.id, ExpensePatch())
+    assert e.value.status_code == 422 and e.value.detail["code"] == "no_updatable_fields"
+
 def test_list_filters_status_and_year(db, make_business):
     biz = make_business()
     expense_service.create_expense(db, biz["id"], _payload(expense_date="2026-03-01"), source="manual")

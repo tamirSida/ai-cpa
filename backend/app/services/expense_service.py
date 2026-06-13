@@ -1,4 +1,5 @@
 # backend/app/services/expense_service.py
+from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 from app.core.errors import api_error
 from app.schemas.expense import Expense, ExpenseCreate, ExpensePatch
@@ -48,31 +49,52 @@ def create_expense(db, business_id: str, payload: ExpenseCreate, source: str) ->
         "status": status, "createdAt": now, "updatedAt": now,
     }
     ref.set(data)
+    # create is a fresh insert + informational expense_created event; the dashboard/report read expenses by status, not the ledger, so a non-atomic event here is the least-consequential path.
     record_event(db, business_id, type="expense_created", entity_type="expense",
                  entity_id=ref.id, amount=data["amount"], metadata={"source": source})
     return Expense.model_validate(data)
 
 def approve_expense(db, business_id: str, expense_id: str) -> Expense:
-    ref, data = _load(db, business_id, expense_id)
-    if data["status"] != "needs_review":
-        api_error(409, "invalid_expense_status", "אפשר לאשר רק הוצאה בסטטוס לבדיקה")
-    if data.get("amount") is None:
-        api_error(422, "missing_amount", "אי אפשר לאשר הוצאה ללא סכום")
-    changes = {"status": "approved", "updatedAt": now_il()}
-    ref.update(changes); data.update(changes)
-    record_event(db, business_id, type="expense_approved", entity_type="expense",
-                 entity_id=expense_id, amount=data["amount"])
-    return Expense.model_validate(data)
+    ref = _expenses(db, business_id).document(expense_id)
+    transaction = db.transaction()
+
+    @firestore.transactional
+    def _approve(tx) -> dict:
+        snap = ref.get(transaction=tx)
+        if not snap.exists:
+            api_error(404, "expense_not_found", "ההוצאה לא נמצאה")
+        data = snap.to_dict()
+        if data["status"] != "needs_review":
+            api_error(409, "invalid_expense_status", "אפשר לאשר רק הוצאה בסטטוס לבדיקה")
+        if data.get("amount") is None:
+            api_error(422, "missing_amount", "אי אפשר לאשר הוצאה ללא סכום")
+        changes = {"status": "approved", "updatedAt": now_il()}
+        tx.update(ref, changes)
+        record_event(tx, business_id, type="expense_approved", entity_type="expense",
+                     entity_id=expense_id, amount=data["amount"])
+        return {**data, **changes}
+
+    return Expense.model_validate(_approve(transaction))
 
 def reject_expense(db, business_id: str, expense_id: str) -> Expense:
-    ref, data = _load(db, business_id, expense_id)
-    if data["status"] != "needs_review":
-        api_error(409, "invalid_expense_status", "אפשר לדחות רק הוצאה בסטטוס לבדיקה")
-    changes = {"status": "rejected", "updatedAt": now_il()}
-    ref.update(changes); data.update(changes)
-    record_event(db, business_id, type="expense_rejected", entity_type="expense",
-                 entity_id=expense_id, amount=data.get("amount"))
-    return Expense.model_validate(data)
+    ref = _expenses(db, business_id).document(expense_id)
+    transaction = db.transaction()
+
+    @firestore.transactional
+    def _reject(tx) -> dict:
+        snap = ref.get(transaction=tx)
+        if not snap.exists:
+            api_error(404, "expense_not_found", "ההוצאה לא נמצאה")
+        data = snap.to_dict()
+        if data["status"] != "needs_review":
+            api_error(409, "invalid_expense_status", "אפשר לדחות רק הוצאה בסטטוס לבדיקה")
+        changes = {"status": "rejected", "updatedAt": now_il()}
+        tx.update(ref, changes)
+        record_event(tx, business_id, type="expense_rejected", entity_type="expense",
+                     entity_id=expense_id, amount=data.get("amount"))
+        return {**data, **changes}
+
+    return Expense.model_validate(_reject(transaction))
 
 def list_expenses(db, business_id: str, status: str | None = None, year: int | None = None) -> list[Expense]:
     q = _expenses(db, business_id)
@@ -89,6 +111,8 @@ def update_expense(db, business_id: str, expense_id: str, patch: ExpensePatch) -
     if data["status"] != "needs_review":
         api_error(409, "invalid_expense_status", "אפשר לערוך הוצאה רק כשהיא בסטטוס לבדיקה")
     changes = {k: v for k, v in patch.model_dump(by_alias=True, exclude_unset=True).items() if k in PATCH_WHITELIST}
+    if not changes:
+        api_error(422, "no_updatable_fields", "אין שדות לעדכון")
     _check_date(changes.get("expenseDate"))
     if changes.get("amount") is not None:
         changes["amount"] = round_ils(changes["amount"])
