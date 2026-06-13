@@ -8,6 +8,10 @@ from google.cloud import firestore
 
 PROJECT_ID = "demo-tax-test"  # 'demo-' prefix = emulator-only, guaranteed offline
 
+# Hermetic: env vars take precedence over .env, so signing_service.is_configured() is
+# False across the suite even if a developer set a real password in backend/.env.
+os.environ.setdefault("RECEIPT_SIGNING_P12_PASSWORD", "")
+
 
 def _emulator_host() -> str:
     host = os.environ.get("FIRESTORE_EMULATOR_HOST")

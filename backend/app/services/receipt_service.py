@@ -9,6 +9,7 @@ from app.services.client_service import get_client
 from app.services.cloudinary_service import upload_pdf
 from app.services.ledger_service import record_event
 from app.services.pdf_service import render_pdf
+from app.services import signing_service
 from app.utils.dates import now_il, parse_iso_date, today_il
 from app.utils.money import round_ils
 
@@ -123,7 +124,11 @@ def issue_receipt(db, business_id: str, receipt_id: str) -> Receipt:
 def _attach_pdf(db, business_id: str, receipt_ref) -> None:
     rec = receipt_ref.get().to_dict()
     biz = db.collection("businesses").document(business_id).get().to_dict()
-    pdf = render_pdf("receipt.html", {"business": biz, "receipt": rec})
+    will_sign = signing_service.is_configured() and signing_service.is_signable_payment(
+        rec.get("paymentMethod", "unknown"))
+    pdf = render_pdf("receipt.html", {"business": biz, "receipt": rec, "signed": will_sign})
+    if will_sign:
+        pdf = signing_service.sign_pdf(pdf)   # raises -> issue_receipt logs, repair branch re-runs
     up = upload_pdf(pdf, public_id=f"receipts/{business_id}/{rec['receiptNumber']}.pdf")
     receipt_ref.update({"pdfUrl": up.secure_url, "cloudinaryPublicId": up.public_id})
 
