@@ -34,12 +34,19 @@ def create_draft(db, business: Business, payload: ReceiptDraftCreate) -> Receipt
         snapshot = ClientSnapshot(name=payload.client_name.strip())
     else:
         api_error(422, "missing_client", "נדרש מזהה לקוח קיים או שם לקוח")
+    check = None
+    if payload.payment_method == "check":
+        cd = payload.check_details
+        if cd is None or not all(s and s.strip() for s in (cd.number, cd.bank, cd.branch, cd.due_date)):
+            api_error(422, "missing_check_details", "נדרשים פרטי המחאה: מספר, בנק, סניף ותאריך פירעון")
+        check = cd
     ref = _col(db, business.id).document()
     data = {"id": ref.id, "businessId": business.id, "clientId": payload.client_id,
             "status": "draft", "issueDate": payload.issue_date or today_il().isoformat(),
             "amount": round_ils(payload.amount), "currency": "ILS",
             "paymentMethod": payload.payment_method, "description": payload.description.strip(),
             "clientSnapshot": snapshot.model_dump(by_alias=True, exclude_none=True),
+            "checkDetails": check.model_dump(by_alias=True) if check else None,
             "createdAt": now_il()}
     ref.set(data)
     return Receipt.model_validate(data)
