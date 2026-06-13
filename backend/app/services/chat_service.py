@@ -18,6 +18,8 @@ def compute_missing_fields(intent: IntentType, payload: dict) -> list[str]:
         if not isinstance(amount, (int, float)) or isinstance(amount, bool) or amount <= 0:
             missing.append("amount")
         if not payload.get("description"): missing.append("description")
+        # `is not True` is deliberate identity, not falsiness: 1/"yes" must NOT satisfy the
+        # payment confirmation; only an explicit boolean True (received) or issue_receipt request does.
         if payload.get("payment_received") is not True and payload.get("issue_receipt") is not True:
             missing.append("payment_received_confirmation")  # doc §10 rule
     elif intent == IntentType.CREATE_CONTACT:

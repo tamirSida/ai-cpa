@@ -1,10 +1,7 @@
 from datetime import datetime
 from typing import Any, Optional
-from pydantic import BaseModel, ConfigDict
-from pydantic.alias_generators import to_camel
 
-class CamelModel(BaseModel):
-    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+from app.schemas.common import CamelModel  # shared base — don't redefine (would silently drift)
 
 class PendingAction(CamelModel):  # doc §5.6
     id: str; business_id: str; thread_id: str; type: str; status: str
