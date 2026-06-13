@@ -60,6 +60,12 @@ def test_patch_foreign_business_403(api, make_business):
     assert r.status_code == 403 and r.json()["detail"]["code"] == "forbidden"
 
 
+def test_patch_empty_body_400(api):
+    biz_id = api.post("/api/businesses", json=CREATE_BODY).json()["id"]
+    r = api.patch(f"/api/businesses/{biz_id}", json={})
+    assert r.status_code == 400 and r.json()["detail"]["code"] == "no_updatable_fields"
+
+
 def test_missing_token_401(unauth_api):
     r = unauth_api.get("/api/businesses/me")
     assert r.status_code == 401 and r.json()["detail"]["code"] == "unauthenticated"
