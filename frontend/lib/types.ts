@@ -75,3 +75,15 @@ export interface Expense {
   ocrText: string | null; extractionConfidence: number | null; status: ExpenseStatus;
   createdAt: string; updatedAt: string;
 }
+
+export interface DashboardTotals { incomeThisYear: number; incomeThisMonth: number; expensesThisYear: number; estimatedProfit: number; }
+export interface DashboardCounts { receiptsCount: number; approvedExpensesCount: number; needsReviewCount: number; }
+export interface ThresholdStatus { total: number; limit: number; pct: number; warning: boolean; }
+export interface MonthlyIncomeEntry { month: number; total: number; }
+export interface RecentReceipt { id: string; receiptNumber: string; clientName: string; amount: number; issueDate: string; pdfUrl: string | null; }
+export interface RecentExpense { id: string; supplierName: string | null; amount: number | null; category: string | null; expenseDate: string | null; status: "needs_review" | "approved" | "rejected"; }
+export interface DashboardResponse {
+  totals: DashboardTotals; counts: DashboardCounts; threshold: ThresholdStatus;
+  monthlyIncome: MonthlyIncomeEntry[]; expensesByCategory: Record<string, number>;
+  recentReceipts: RecentReceipt[]; recentExpenses: RecentExpense[]; warnings: string[];
+}

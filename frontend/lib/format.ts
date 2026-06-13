@@ -8,3 +8,8 @@ export function formatILS(n: number): string {
     maximumFractionDigits: 2,
   }).format(n);
 }
+
+export const MONTH_NAMES_HE = [
+  "ינו׳", "פבר׳", "מרץ", "אפר׳", "מאי", "יוני",
+  "יולי", "אוג׳", "ספט׳", "אוק׳", "נוב׳", "דצמ׳",
+];
