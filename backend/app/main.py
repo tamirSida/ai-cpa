@@ -1,11 +1,22 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
+from app.core.firebase import init_firebase
+from app.routers import businesses
 
 settings = get_settings()
 
-app = FastAPI(title="AI Bookkeeper API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_firebase()
+    yield
+
+
+app = FastAPI(title="AI Bookkeeper API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -16,11 +27,9 @@ app.add_middleware(
 )
 
 
+app.include_router(businesses.router, prefix="/api")
+
+
 @app.get("/healthz")
 def healthz() -> dict:
     return {"status": "ok"}
-
-
-# Router registration pattern — each phase appends its router here under /api:
-# from app.routers import businesses
-# app.include_router(businesses.router, prefix="/api")

@@ -14,6 +14,10 @@ def init_firebase() -> None:
         return
     if os.environ.get("FIRESTORE_EMULATOR_HOST"):
         # Tests/emulator: no service account; project id from env (demo-* = offline).
+        # Also force firebase-admin auth into emulator mode so verify_id_token never
+        # tries to load ADC credentials (malformed tokens fail locally with ValueError/
+        # InvalidIdTokenError before any network call).
+        os.environ.setdefault("FIREBASE_AUTH_EMULATOR_HOST", "localhost:9099")
         firebase_admin.initialize_app(
             options={"projectId": os.environ.get("GOOGLE_CLOUD_PROJECT", "demo-tax-test")}
         )
