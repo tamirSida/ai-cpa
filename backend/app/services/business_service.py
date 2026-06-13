@@ -5,7 +5,10 @@ from app.core.errors import api_error
 from app.schemas.business import Business, BusinessCreate, BusinessUpdate
 from app.utils.dates import now_il
 
-MUTABLE_FIELDS = {"businessName", "ownerName", "address", "phone", "email", "receiptPrefix"}
+MUTABLE_FIELDS = {
+    "businessName", "ownerName", "address", "phone", "email", "receiptPrefix",
+    "bankName", "bankBranch", "bankAccount",
+}
 
 
 def get_business_by_owner(db: firestore.Client, uid: str) -> Business | None:
@@ -34,6 +37,9 @@ def create_business(db: firestore.Client, uid: str, payload: BusinessCreate) -> 
         "phone": payload.phone,
         "email": payload.email,
         "receiptPrefix": payload.receipt_prefix or str(now.year),
+        "bankName": payload.bank_name,
+        "bankBranch": payload.bank_branch,
+        "bankAccount": payload.bank_account,
         "nextReceiptNumber": 1,
         "createdAt": now,
         "updatedAt": now,

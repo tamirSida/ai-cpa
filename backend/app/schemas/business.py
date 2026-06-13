@@ -14,6 +14,9 @@ class BusinessCreate(CamelModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     receipt_prefix: Optional[str] = Field(default=None, max_length=10)  # server defaults to current IL year
+    bank_name: Optional[str] = Field(default=None, max_length=60)
+    bank_branch: Optional[str] = Field(default=None, max_length=60)
+    bank_account: Optional[str] = Field(default=None, max_length=60)
 
 
 class BusinessUpdate(CamelModel):
@@ -25,6 +28,9 @@ class BusinessUpdate(CamelModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     receipt_prefix: Optional[str] = Field(default=None, min_length=1, max_length=10)
+    bank_name: Optional[str] = Field(default=None, max_length=60)
+    bank_branch: Optional[str] = Field(default=None, max_length=60)
+    bank_account: Optional[str] = Field(default=None, max_length=60)
 
 
 class Business(CamelModel):
@@ -40,5 +46,8 @@ class Business(CamelModel):
     receipt_prefix: str
     next_receipt_number: int = 1
     annual_limit: Optional[int] = None
+    bank_name: Optional[str] = None
+    bank_branch: Optional[str] = None
+    bank_account: Optional[str] = None
     created_at: datetime
     updated_at: datetime
