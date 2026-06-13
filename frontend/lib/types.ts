@@ -87,3 +87,9 @@ export interface DashboardResponse {
   monthlyIncome: MonthlyIncomeEntry[]; expensesByCategory: Record<string, number>;
   recentReceipts: RecentReceipt[]; recentExpenses: RecentExpense[]; warnings: string[];
 }
+
+export interface PrecheckResult {
+  year: number; expensesNeedingReview: string[]; expensesMissingImages: string[];
+  uncategorizedExpenses: string[]; receiptsMissingPdf: string[]; cancelledReceipts: string[];
+  missingBusinessFields: string[]; totalRevenue: number; thresholdWarning: boolean; issuesCount: number;
+}

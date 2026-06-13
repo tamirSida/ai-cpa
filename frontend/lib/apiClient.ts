@@ -47,3 +47,16 @@ async function request<T>(
 export function api<T>(path: string, init?: RequestInit): Promise<T> {
   return request<T>(path, init, false);
 }
+
+export async function apiBlob(path: string, init: RequestInit = {}): Promise<Blob> {
+  const user = auth.currentUser;
+  if (!user) throw new ApiError('unauthenticated', 'Not signed in', 401);
+  const doFetch = async (force: boolean) => {
+    const token = await user.getIdToken(force);
+    return fetch(`${BASE_URL}${path}`, { ...init, headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` } });
+  };
+  let res = await doFetch(false);
+  if (res.status === 401) res = await doFetch(true);
+  if (!res.ok) throw new ApiError(String(res.status), `Request failed with ${res.status}`, res.status);
+  return res.blob();
+}
