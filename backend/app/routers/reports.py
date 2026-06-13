@@ -12,3 +12,15 @@ router = APIRouter(prefix="/businesses/{businessId}/reports", tags=["reports"])
 def precheck_annual(year: int = Path(ge=2020, le=2100),
                     business: Business = Depends(get_owned_business), db=Depends(get_db)):
     return report_service.precheck(db, business, year)
+
+from urllib.parse import quote
+from fastapi.responses import StreamingResponse
+
+@router.post("/annual/{year}/generate")
+def generate_annual(year: int = Path(ge=2020, le=2100),
+                    business: Business = Depends(get_owned_business), db=Depends(get_db)):
+    buf = report_service.generate_zip(db, business, year)
+    cd = (f'attachment; filename="annual_report_{year}.zip"; '
+          f"filename*=UTF-8''{quote(f'דוח_שנתי_{year}.zip')}")        # RFC 5987
+    return StreamingResponse(buf, media_type="application/zip",
+                             headers={"Content-Disposition": cd})
