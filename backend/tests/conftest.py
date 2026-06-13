@@ -28,6 +28,15 @@ def db() -> firestore.Client:
     return firestore.Client(project=PROJECT_ID)
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _patch_firebase_db(db):
+    # Keep firebase.get_db()'s module cache pointing at the emulator client so any
+    # future direct call (outside Depends) can never hit a real project during tests.
+    import app.core.firebase as firebase_mod
+
+    firebase_mod._db = db
+
+
 @pytest.fixture(autouse=True)
 def clear_db():
     host = _emulator_host()
@@ -43,11 +52,13 @@ def api(db):
     from app.core import auth, firebase
     from app.main import app
 
+    saved = dict(app.dependency_overrides)
     app.dependency_overrides[auth.get_current_uid] = lambda: "test-uid"
     app.dependency_overrides[firebase.get_db] = lambda: db
     with TestClient(app) as client:
         yield client
     app.dependency_overrides.clear()
+    app.dependency_overrides.update(saved)
 
 
 @pytest.fixture()
