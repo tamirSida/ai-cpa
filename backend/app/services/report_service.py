@@ -28,3 +28,35 @@ def precheck(db, business: Business, year: int) -> PrecheckResult:
                           receipts_missing_pdf=missing_pdf, cancelled_receipts=cancelled,
                           missing_business_fields=missing_profile, total_revenue=ts.total,
                           threshold_warning=ts.warning, issues_count=sum(len(x) for x in lists))
+
+import csv, io
+from app.utils.money import round_ils
+
+def _csv_bytes(header: list[str], rows: list[list]) -> bytes:
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(header); w.writerows(rows)
+    return out.getvalue().encode("utf-8-sig")   # BOM => Excel opens Hebrew correctly
+
+def build_income_csv(receipts) -> bytes:
+    rows = [[r.receipt_number, r.issue_date, r.client_snapshot.name, r.description,
+             r.payment_method, r.amount, r.status]
+            for r in sorted(receipts, key=lambda r: r.sequence_number or 0)]
+    return _csv_bytes(["receiptNumber", "issueDate", "clientName", "description",
+                       "paymentMethod", "amount", "status"], rows)
+
+def build_expenses_csv(expenses) -> bytes:
+    rows = []
+    for e in sorted(expenses, key=lambda e: e.expense_date or ""):
+        pct = e.business_use_percent if e.business_use_percent is not None else 100
+        deductible = round_ils(e.amount * pct / 100) if e.amount is not None else ""
+        rows.append([e.expense_date or "", e.supplier_name or "", e.category or "", e.description or "",
+                     e.amount if e.amount is not None else "", pct, deductible, e.status,
+                     "yes" if e.image_url else "no"])
+    return _csv_bytes(["expenseDate", "supplierName", "category", "description", "amount",
+                       "businessUsePercent", "deductibleAmount", "status", "hasImage"], rows)
+
+def build_clients_csv(clients) -> bytes:
+    rows = [[c.name, c.company_name or "", c.tax_id or "", c.phone or "", c.email or ""]
+            for c in sorted(clients, key=lambda c: c.name)]
+    return _csv_bytes(["name", "companyName", "taxId", "phone", "email"], rows)
