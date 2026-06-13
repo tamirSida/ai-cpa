@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends
 
 from app.core.auth import get_owned_business
@@ -26,7 +28,7 @@ def cancel_receipt(receipt_id: str, body: ReceiptCancelRequest, business: Busine
 
 
 @router.get("", response_model=list[Receipt])
-def list_receipts(status: str | None = None, year: int | None = None, business: Business = Depends(get_owned_business), db=Depends(get_db)):
+def list_receipts(status: Literal["draft", "issued", "cancelled"] | None = None, year: int | None = None, business: Business = Depends(get_owned_business), db=Depends(get_db)):
     return receipt_service.list_receipts(db, business.id, status, year)
 
 

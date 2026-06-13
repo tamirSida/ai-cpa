@@ -26,3 +26,23 @@ def test_year_filter(api, db, make_business, stub_receipt_assets):
     rid = api.post(f"{base}/draft", json={"clientName": "נ", "amount": 1, "description": "x", "issueDate": "2025-12-31"}).json()["id"]
     api.post(f"{base}/{rid}/issue")
     assert len(api.get(f"{base}?year=2025").json()) == 1 and api.get(f"{base}?year=2026").json() == []
+
+
+def test_cancel_draft_409(api, make_business):
+    biz = make_business()
+    base = f"/api/businesses/{biz['id']}/receipts"
+    rid = api.post(f"{base}/draft", json={"clientName": "נ", "amount": 1, "description": "x"}).json()["id"]
+    r = api.post(f"{base}/{rid}/cancel", json={"reason": "מוקדם מדי"})
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "receipt_not_issued"
+
+
+def test_receipts_route_foreign_business_403(api, make_business):
+    other = make_business(ownerUserId="someone-else")
+    r = api.get(f"/api/businesses/{other['id']}/receipts")
+    assert r.status_code == 403 and r.json()["detail"]["code"] == "forbidden"
+
+
+def test_list_invalid_status_422(api, make_business):
+    biz = make_business()
+    r = api.get(f"/api/businesses/{biz['id']}/receipts?status=isued")
+    assert r.status_code == 422
