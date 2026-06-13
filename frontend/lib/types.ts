@@ -64,3 +64,14 @@ export interface UiChatMessage extends ChatMessage {
   sendStatus?: ChatSendStatus;
   pdfUrl?: string | null;
 }
+
+export type ExpenseStatus = "needs_review" | "approved" | "rejected";
+export type ExpenseCategory = "software" | "equipment" | "travel" | "office" | "marketing"
+  | "professional_services" | "meals" | "parking" | "other";
+export interface Expense {
+  id: string; businessId: string; supplierName: string | null; expenseDate: string | null;
+  amount: number | null; currency: "ILS"; category: ExpenseCategory | null; description: string | null;
+  businessUsePercent: number; imageUrl: string | null; cloudinaryPublicId: string | null;
+  ocrText: string | null; extractionConfidence: number | null; status: ExpenseStatus;
+  createdAt: string; updatedAt: string;
+}
