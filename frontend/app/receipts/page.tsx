@@ -289,6 +289,11 @@ export default function ReceiptsPage() {
               <DetailRow label="תאריך"><span dir="ltr">{selected.issueDate}</span></DetailRow>
               <DetailRow label="סכום"><span className="tnum" dir="ltr">{formatILS(selected.amount)}</span></DetailRow>
               <DetailRow label="אמצעי תשלום">{PAYMENT_LABELS[selected.paymentMethod]}</DetailRow>
+              {selected.checkDetails && (
+                <DetailRow label="פרטי המחאה">
+                  {selected.checkDetails.bank} · מס׳ <span dir="ltr" className="tnum">{selected.checkDetails.number}</span> · סניף <span dir="ltr" className="tnum">{selected.checkDetails.branch}</span> · פירעון <span dir="ltr" className="tnum">{selected.checkDetails.dueDate}</span>
+                </DetailRow>
+              )}
               <DetailRow label="תיאור">{selected.description}</DetailRow>
               {selected.status === "cancelled" && selected.cancellationReason && (
                 <DetailRow label="סיבת ביטול">{selected.cancellationReason}</DetailRow>
