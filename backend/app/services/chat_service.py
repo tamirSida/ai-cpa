@@ -1,11 +1,14 @@
 import uuid
 from enum import Enum
 from datetime import timedelta
+from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 from app.schemas.ai_commands import (IntentType, ParsedUserCommand, ParserFailure, QueryPayload,
                                      QueryType, TimePreset, TimeRange)
 from app.schemas.business import Business
 from app.schemas.chat import ActionView, ChatTurnResult, ExecutionResult
+from app.schemas.client import ClientCreate
+from app.schemas.receipt import ReceiptDraftCreate
 from app.services import aggregation_service as agg
 from app.services import client_service, receipt_service
 from app.utils.dates import now_il, resolve_time_range, today_il, year_bounds
@@ -129,12 +132,82 @@ def _upsert_action(db, business_id, thread_id, action_id, intent, status, payloa
         {"status": status, "payload": payload, "missingFields": missing, "updatedAt": now_il()})
     return action_id
 
-def cancel_action(db, business_id, action_id, reason="cancelled") -> None:
-    _actions_col(db, business_id).document(action_id).update(
-        {"status": "cancelled", "cancellationReason": reason, "updatedAt": now_il()})
+def _flip_to_confirmed(db, action_ref) -> dict:
+    tx = db.transaction()
+    @firestore.transactional
+    def flip(transaction):
+        snap = action_ref.get(transaction=transaction)
+        if not snap.exists:
+            api_error(404, "action_not_found", "הפעולה לא נמצאה")
+        data = snap.to_dict()
+        if data["status"] != "pending_confirmation":
+            api_error(409, "action_not_confirmable", "הפעולה כבר טופלה או אינה ממתינה לאישור")
+        transaction.update(action_ref, {"status": "confirmed", "updatedAt": now_il()})
+        return data
+    return flip(tx)
 
-def confirm_action(db, parser, business, action_id):
-    raise NotImplementedError  # Task 3.7
+def _execute_receipt(db, business: Business, payload: dict):
+    name = payload["client_name"].strip()
+    exact = [c for c in client_service.find_clients_by_name(db, business.id, name) if c.name.strip() == name]
+    client_id = exact[0].id if len(exact) == 1 else None
+    # create_draft builds the clientSnapshot itself: full client doc when client_id
+    # resolves, name-only otherwise (Task 2.3) — ReceiptDraftCreate has no snapshot field
+    draft = receipt_service.create_draft(db, business, ReceiptDraftCreate(
+        client_id=client_id, client_name=name, amount=round_ils(payload["amount"]), currency="ILS",
+        payment_method=payload.get("payment_method") or "unknown",
+        description=payload["description"]))
+    receipt = receipt_service.issue_receipt(db, business.id, draft.id)
+    return (f"נוצרה קבלה מספר {receipt.receipt_number}.",
+            {"receiptId": receipt.id, "receiptNumber": receipt.receipt_number, "pdfUrl": receipt.pdf_url})
+
+def _execute_contact(db, business, payload):
+    client = client_service.create_client(db, business.id, ClientCreate(
+        name=payload["name"], phone=payload.get("phone"), email=payload.get("email"),
+        company_name=payload.get("company_name"), tax_id=payload.get("tax_id"), address=payload.get("address")))
+    return f"איש הקשר {client.name} נוסף בהצלחה.", {"clientId": client.id}
+
+def _execute_expense(db, business, payload):
+    from app.services import expense_service          # Phase 4 module — imported lazily on purpose
+    from app.schemas.expense import ExpenseCreate
+    expense = expense_service.create_expense(db, business.id, ExpenseCreate(
+        supplier_name=payload.get("supplier_name"), amount=round_ils(payload["amount"]), currency="ILS",
+        category=payload.get("category"), description=payload.get("description"),
+        business_use_percent=payload.get("business_use_percent") or 100,
+        expense_date=payload.get("expense_date")), source="chat")
+    note = " היא ממתינה לבדיקה כי חסרה קטגוריה." if expense.status == "needs_review" else ""
+    return f"ההוצאה נשמרה.{note}", {"expenseId": expense.id}
+
+_EXECUTORS = {"CREATE_RECEIPT": _execute_receipt, "CREATE_CONTACT": _execute_contact,
+              "CREATE_EXPENSE": _execute_expense,
+              "GENERATE_ANNUAL_REPORT": lambda db, business, payload:
+                  (f"מעולה. אפשר להפיק את הדוח השנתי לשנת {payload['year']} בעמוד הדוח השנתי.",
+                   {"year": payload["year"], "link": "/annual-report"})}
+
+def confirm_action(db, parser_or_none, business: Business, action_id: str) -> ExecutionResult:
+    action_ref = _actions_col(db, business.id).document(action_id)
+    data = _flip_to_confirmed(db, action_ref)
+    thread_id, payload = data["threadId"], data["payload"]
+    try:
+        reply, result = _EXECUTORS[data["type"]](db, business, payload)
+    except Exception as exc:                          # revert: user can confirm again
+        action_ref.update({"status": "pending_confirmation", "errorNote": str(exc), "updatedAt": now_il()})
+        reply = "אירעה שגיאה בביצוע הפעולה. אפשר לנסות לאשר שוב."
+        save_message(db, business.id, thread_id, "assistant", reply, action_id=action_id)
+        return ExecutionResult(assistant_text=reply, action=ActionView(
+            id=action_id, type=data["type"], status="pending_confirmation", payload=payload, missing_fields=[]))
+    action_ref.update({"status": "executed", "result": result, "updatedAt": now_il()})
+    save_message(db, business.id, thread_id, "assistant", reply, action_id=action_id)
+    return ExecutionResult(assistant_text=reply, action=ActionView(
+        id=action_id, type=data["type"], status="executed", payload=payload, missing_fields=[]), result=result)
+
+def cancel_action(db, business_id: str, action_id: str, reason: str = "user_cancelled") -> None:
+    ref = _actions_col(db, business_id).document(action_id)
+    snap = ref.get()
+    if not snap.exists:
+        api_error(404, "action_not_found", "הפעולה לא נמצאה")
+    if snap.to_dict()["status"] not in ACTIVE_STATUSES:
+        api_error(409, "action_not_cancellable", "הפעולה כבר בוצעה או בוטלה")
+    ref.update({"status": "cancelled", "cancellationReason": reason, "updatedAt": now_il()})
 
 def handle_message(db, parser, business: Business, thread_id: str, text: str) -> ChatTurnResult:
     save_message(db, business.id, thread_id, "user", text)
