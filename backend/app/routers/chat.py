@@ -24,15 +24,16 @@ def confirm(action_id: str, business: Business = Depends(get_owned_business), db
 
 @router.post("/actions/{action_id}/cancel")
 def cancel(action_id: str, business: Business = Depends(get_owned_business), db=Depends(get_db)):
-    snap = db.collection("businesses").document(business.id).collection("pendingActions").document(action_id).get()
-    thread_id = snap.to_dict().get("threadId", "main") if snap.exists else "main"
-    chat_service.cancel_action(db, business.id, action_id)   # raises 404/409
+    # cancel_action validates (404/409) and returns the action's threadId — single read, no race.
+    thread_id = chat_service.cancel_action(db, business.id, action_id)
     chat_service.save_message(db, business.id, thread_id, "assistant", "הפעולה בוטלה.", action_id=action_id)
     return {"status": "cancelled"}
 
 @router.get("/messages", response_model=ChatHistoryResponse)
 def list_messages(business: Business = Depends(get_owned_business), db=Depends(get_db),
-                  thread_id: str = Query("main", alias="threadId"), limit: int = Query(50, le=200)):
+                  thread_id: str = Query("main", alias="threadId"), limit: int = Query(50, ge=1, le=200)):
+    # NOTE: _load_active_action below self-heals (expires stale / cancels duplicate actions),
+    # so this GET can mutate Firestore — intentional, keeps thread state consistent on read.
     docs = db.collection("businesses").document(business.id).collection("chatThreads") \
              .document(thread_id).collection("messages") \
              .order_by("createdAt", direction="DESCENDING").limit(limit).stream()

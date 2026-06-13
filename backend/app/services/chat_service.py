@@ -215,14 +215,17 @@ def confirm_action(db, parser_or_none, business: Business, action_id: str) -> Ex
     return ExecutionResult(assistant_text=reply, action=ActionView(
         id=action_id, type=data["type"], status="executed", payload=payload, missing_fields=[]), result=result)
 
-def cancel_action(db, business_id: str, action_id: str, reason: str = "user_cancelled") -> None:
+def cancel_action(db, business_id: str, action_id: str, reason: str = "user_cancelled") -> str:
+    """Cancel an active action; returns its threadId so callers needn't re-read the doc."""
     ref = _actions_col(db, business_id).document(action_id)
     snap = ref.get()
     if not snap.exists:
         api_error(404, "action_not_found", "הפעולה לא נמצאה")
-    if snap.to_dict()["status"] not in ACTIVE_STATUSES:
+    data = snap.to_dict()
+    if data["status"] not in ACTIVE_STATUSES:
         api_error(409, "action_not_cancellable", "הפעולה כבר בוצעה או בוטלה")
     ref.update({"status": "cancelled", "cancellationReason": reason, "updatedAt": now_il()})
+    return data.get("threadId", "main")
 
 def handle_message(db, parser, business: Business, thread_id: str, text: str) -> ChatTurnResult:
     save_message(db, business.id, thread_id, "user", text)

@@ -146,3 +146,14 @@ def test_confirm_unknown_action_404(api, make_business):
     resp = api.post(f"/api/businesses/{biz_id}/chat/actions/nonexistent-action-id-xyz/confirm")
     assert resp.status_code == 404
     assert resp.json()["detail"]["code"] == "action_not_found"
+
+
+def test_cancel_already_executed_action_409(api, make_business, stub_parser):
+    from tests.integration.test_chat_flow import FULL_RECEIPT
+    biz = make_business()
+    stub_parser.queue_command(FULL_RECEIPT)
+    base = f"/api/businesses/{biz['id']}/chat"
+    action_id = api.post(f"{base}/message", json={"text": "קיבלתי 2800 מנועה על עיצוב לוגו בביט"}).json()["action"]["id"]
+    assert api.post(f"{base}/actions/{action_id}/confirm").status_code == 200
+    r = api.post(f"{base}/actions/{action_id}/cancel")  # already executed
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "action_not_cancellable"
