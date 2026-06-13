@@ -131,6 +131,9 @@ def build_jpg_delivery_url(public_id: str) -> str:
     return url
 
 def run_extraction(db, business_id: str, expense_id: str, parser) -> Expense:
+    # Not transactional: two concurrent /extract calls would both hit the LLM (double cost) and
+    # last-writer-wins on the merge. Acceptable for single-user MVP (the review sheet calls this
+    # once per expense); add an `extracting` soft-lock if multi-session extraction becomes real.
     ref, data = _load(db, business_id, expense_id)
     if data["status"] != "needs_review":
         api_error(409, "invalid_expense_status", "אפשר להריץ זיהוי רק על הוצאה בסטטוס לבדיקה")

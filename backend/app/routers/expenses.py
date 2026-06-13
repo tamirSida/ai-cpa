@@ -40,11 +40,15 @@ def reject(expense_id: str, business: Business = Depends(get_owned_business), db
 @router.post("/upload", response_model=Expense, status_code=201)
 def upload_expense_image(file: UploadFile = File(...),
                          business: Business = Depends(get_owned_business), db=Depends(get_db)):
+    # content_type is client-supplied (spoofable) — this is a fast-reject UX guard, NOT the real
+    # gatekeeper: Cloudinary validates the actual bytes server-side and rejects non-images.
     if file.content_type not in ALLOWED_IMAGE_TYPES:
         api_error(400, "unsupported_file_type", "סוג הקובץ לא נתמך. אפשר להעלות JPG, PNG, HEIC או WebP")
-    data = file.file.read(MAX_UPLOAD_BYTES + 1)
+    data = file.file.read(MAX_UPLOAD_BYTES + 1)  # bounded read: never loads more than ~10MB+1
     if len(data) > MAX_UPLOAD_BYTES:
         api_error(413, "file_too_large", "הקובץ גדול מדי (מקסימום 10MB)")
+    # If create_expense fails after this upload, the Cloudinary asset is orphaned — accepted MVP
+    # leakage (a periodic cleanup job is backlog, not blocking for single-user scale).
     uploaded = cloudinary_service.upload_image(data, folder=f"expenses/{business.id}")
     payload = ExpenseCreate(image_url=uploaded.secure_url, cloudinary_public_id=uploaded.public_id)
     return expense_service.create_expense(db, business.id, payload, source="image")
