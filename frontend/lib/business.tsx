@@ -5,23 +5,24 @@ import { useAuth } from "@/lib/auth";
 import { api, ApiError } from "@/lib/apiClient";
 import type { Business } from "@/lib/types";
 
-interface BusinessState { business: Business | null; loading: boolean; refresh: () => Promise<void>; }
-const BusinessContext = createContext<BusinessState>({ business: null, loading: true, refresh: async () => {} });
+interface BusinessState { business: Business | null; loading: boolean; fetchError: boolean; refresh: () => Promise<void>; }
+const BusinessContext = createContext<BusinessState>({ business: null, loading: true, fetchError: false, refresh: async () => {} });
 
 export function BusinessProvider({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
   const [business, setBusiness] = useState<Business | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
 
   const refresh = useCallback(async () => {
     if (!user) { setBusiness(null); setLoading(false); return; }
     setLoading(true);
-    try { setBusiness(await api<Business>("/businesses/me")); }
+    try { setBusiness(await api<Business>("/businesses/me")); setFetchError(false); }
     catch (e) {
-      if (e instanceof ApiError && e.code === "business_not_found") setBusiness(null);
-      else { console.error(e); setBusiness(null); }
+      if (e instanceof ApiError && e.code === "business_not_found") { setBusiness(null); setFetchError(false); }
+      else { console.error(e); setBusiness(null); setFetchError(true); }
     } finally { setLoading(false); }
   }, [user]);
 
@@ -30,12 +31,17 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
   // Gating: signed-in without business -> /onboarding; with business, keep off /onboarding.
   useEffect(() => {
     if (authLoading || loading || !user) return;
-    if (!business && pathname !== "/onboarding" && pathname !== "/login") router.replace("/onboarding");
-    if (business && pathname === "/onboarding") router.replace("/dashboard");
-  }, [authLoading, loading, user, business, pathname, router]);
+    // Read edit mode from the URL directly (effects only run client-side); useSearchParams
+    // would force a Suspense boundary at the root layout.
+    const editMode = new URLSearchParams(window.location.search).get("edit") === "1";
+    // A fetch error must not dump existing owners on the create form.
+    if (!business && !fetchError && pathname !== "/onboarding" && pathname !== "/login") router.replace("/onboarding");
+    // edit=1 keeps owners on the form so they can edit their business details.
+    if (business && pathname === "/onboarding" && !editMode) router.replace("/dashboard");
+  }, [authLoading, loading, user, business, fetchError, pathname, router]);
 
   return (
-    <BusinessContext.Provider value={{ business, loading: authLoading || loading, refresh }}>
+    <BusinessContext.Provider value={{ business, loading: authLoading || loading, fetchError, refresh }}>
       {children}
     </BusinessContext.Provider>
   );
