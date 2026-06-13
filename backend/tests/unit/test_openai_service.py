@@ -57,3 +57,7 @@ def test_length_finish_reason_maps_to_length():
 
     r = _parser(exc=_Len()).parse_user_command({}, "hi")
     assert isinstance(r, ParserFailure) and r.reason == "length"
+
+def test_connection_error_maps_to_api_error():
+    r = _parser(exc=openai.APIConnectionError(request=httpx.Request("POST", "https://x"))).parse_user_command({}, "hi")
+    assert isinstance(r, ParserFailure) and r.reason == "api_error"

@@ -43,6 +43,7 @@ class OpenAICommandParser:
         except openai.APITimeoutError as e: return ParserFailure(reason="timeout", detail=str(e))
         except openai.RateLimitError as e: return ParserFailure(reason="rate_limit", detail=str(e))
         except openai.APIStatusError as e: return ParserFailure(reason="api_error", detail=f"status={e.status_code}")
+        except openai.APIConnectionError as e: return ParserFailure(reason="api_error", detail=str(e))  # non-timeout network failure (timeouts caught above)
         except ValidationError as e: return ParserFailure(reason="validation_error", detail=str(e)[:500])
         if response.output_parsed is None:
             return ParserFailure(reason="refusal", detail="model refused or returned no parsed output")
