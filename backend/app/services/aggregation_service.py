@@ -60,14 +60,15 @@ def monthly_income(db, business_id: str, year: int) -> dict[int, float]:
 
 
 def client_revenue(db, business_id: str, client_name: str) -> float:
-    """Total revenue from a specific client (all-time, by exact clientSnapshot.name match)."""
-    issued = _issued_receipts(db, business_id, start=None, end=None)
-    total = sum(
-        r["amount"]
-        for r in issued
-        if r.get("clientSnapshot", {}).get("name") == client_name
-    )
-    return round_ils(total)
+    """Total revenue from a specific client (all-time, by exact clientSnapshot.name match).
+
+    Pushes the name match into Firestore (status + clientSnapshot.name composite index)
+    instead of a Python full-scan, so cost stays bounded as receipt volume grows.
+    """
+    col = db.collection("businesses").document(business_id).collection("receipts")
+    q = (col.where(filter=FieldFilter("status", "==", "issued"))
+            .where(filter=FieldFilter("clientSnapshot.name", "==", client_name)))
+    return round_ils(sum(doc.to_dict()["amount"] for doc in q.stream()))
 
 
 def receipts_count(db, business_id: str, year: int) -> int:
@@ -114,10 +115,10 @@ def threshold_status(db, business, year: int) -> ThresholdStatus:
     """Revenue threshold status for a business in the given year.
 
     business is a Business model with .annual_limit (Optional[int]) and .id.
-    limit falls back to get_settings().annual_limit_ils when business.annual_limit is None/0.
-    warning is True when pct >= 90.
+    limit falls back to get_settings().annual_limit_ils only when business.annual_limit is
+    None (an explicit 0 is honored, not silently replaced). warning is True when pct >= 90.
     """
     total = total_revenue(db, business.id, date(year, 1, 1), date(year, 12, 31))
-    limit = float(business.annual_limit or get_settings().annual_limit_ils)
+    limit = float(business.annual_limit if business.annual_limit is not None else get_settings().annual_limit_ils)
     pct = round(total / limit * 100, 1) if limit != 0 else 0.0
     return ThresholdStatus(total=total, limit=limit, pct=pct, warning=pct >= 90)
