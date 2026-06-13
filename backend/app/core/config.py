@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     env: str = "dev"
 
 
+# Cached for the process lifetime: env var changes after the first call are invisible.
+# Tests must set env vars (or call get_settings.cache_clear()) BEFORE importing app.main.
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
