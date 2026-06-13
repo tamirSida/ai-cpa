@@ -55,8 +55,8 @@ export default function ReceiptList({
         <table className="w-full text-start">
           <thead>
             <tr className="border-b border-border text-sm font-bold">
-              <td className="p-3">מספר</td><td className="p-3">תאריך</td><td className="p-3">לקוח</td>
-              <td className="p-3">סכום</td><td className="p-3">אמצעי</td><td className="p-3">סטטוס</td><td className="p-3">PDF</td>
+              <th scope="col" className="p-3">מספר</th><th scope="col" className="p-3">תאריך</th><th scope="col" className="p-3">לקוח</th>
+              <th scope="col" className="p-3">סכום</th><th scope="col" className="p-3">אמצעי</th><th scope="col" className="p-3">סטטוס</th><th scope="col" className="p-3">PDF</th>
             </tr>
           </thead>
           <tbody>

@@ -39,6 +39,7 @@ export default function ReceiptsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [createError, setCreateError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<Receipt | null>(null);
   const [cancelMode, setCancelMode] = useState(false);
@@ -66,6 +67,7 @@ export default function ReceiptsPage() {
   function openCreate() {
     setForm(EMPTY_FORM);
     setFieldErrors({});
+    setCreateError(null);
     setCreateOpen(true);
   }
 
@@ -98,7 +100,7 @@ export default function ReceiptsPage() {
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
     setBusy(true);
-    setError(null);
+    setCreateError(null);
     try {
       const draft = await api<Receipt>(`/businesses/${business.id}/receipts/draft`, {
         method: "POST",
@@ -114,7 +116,7 @@ export default function ReceiptsPage() {
       setReceipts((rs) => [issued, ...rs]);
       setCreateOpen(false);
     } catch (err) {
-      setError((err as Error).message);
+      setCreateError((err as Error).message);
     } finally {
       setBusy(false);
     }
@@ -128,10 +130,12 @@ export default function ReceiptsPage() {
       } catch {
         // user dismissed the OS share sheet — nothing to do
       }
-    } else {
+    } else if (navigator.clipboard) {
       await navigator.clipboard.writeText(receipt.pdfUrl);
       setShareCopied(true);
       setTimeout(() => setShareCopied(false), 2000);
+    } else {
+      window.prompt("העתק את הקישור:", receipt.pdfUrl);
     }
   }
 
@@ -263,6 +267,7 @@ export default function ReceiptsPage() {
               ))}
             </select>
           </div>
+          {createError && <p className="text-sm text-destructive">{createError}</p>}
           <button
             type="submit"
             disabled={busy}
