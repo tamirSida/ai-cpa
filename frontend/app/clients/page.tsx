@@ -21,6 +21,7 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sheetError, setSheetError] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<Client | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -42,6 +43,7 @@ export default function ClientsPage() {
     setEditing(null);
     setForm(EMPTY_FORM);
     setNameError(null);
+    setSheetError(null);
     setSheetOpen(true);
   }
 
@@ -49,6 +51,7 @@ export default function ClientsPage() {
     setEditing(client);
     setForm({ name: client.name, phone: client.phone ?? "", email: client.email ?? "" });
     setNameError(null);
+    setSheetError(null);
     setSheetOpen(true);
   }
 
@@ -60,7 +63,7 @@ export default function ClientsPage() {
       return;
     }
     setBusy(true);
-    setError(null);
+    setSheetError(null);
     const body = JSON.stringify({
       name: form.name.trim(),
       phone: form.phone.trim() || undefined,
@@ -78,7 +81,7 @@ export default function ClientsPage() {
       }
       setSheetOpen(false);
     } catch (err) {
-      setError((err as Error).message);
+      setSheetError((err as Error).message);
     } finally {
       setBusy(false);
     }
@@ -177,6 +180,7 @@ export default function ClientsPage() {
               className={inputClass(false)}
             />
           </div>
+          {sheetError && <p className="text-sm text-destructive">{sheetError}</p>}
           <button
             type="submit"
             disabled={busy}
