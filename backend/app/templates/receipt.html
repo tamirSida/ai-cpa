@@ -11,7 +11,7 @@
 <tr><td>לקוח</td><td>{{ receipt.clientSnapshot.name }}{% if receipt.clientSnapshot.taxId %} ({{ ltr(receipt.clientSnapshot.taxId) }}){% endif %}
 {% if receipt.clientSnapshot.address %}<br>{{ receipt.clientSnapshot.address }}{% endif %}</td></tr>
 <tr><td>תיאור</td><td>{{ receipt.description }}</td></tr>
-<tr><td>אמצעי תשלום</td><td>{{ payment_labels[receipt.paymentMethod] }}</td></tr>
+<tr><td>אמצעי תשלום</td><td>{{ payment_labels.get(receipt.paymentMethod, receipt.paymentMethod) }}</td></tr>
 <tr><td>סכום</td><td class="amount">{{ ltr(receipt.amount | ils) }}</td></tr>
 </table>
 <p class="muted">עוסק פטור — אינו גובה מע״מ. מסמך זה מהווה קבלה בלבד ואינו חשבונית מס.</p>

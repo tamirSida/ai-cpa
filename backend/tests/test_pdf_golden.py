@@ -16,3 +16,11 @@ def test_receipt_pdf_golden():
     name = "נועה גולן"
     assert name in text or name[::-1] in text  # pypdf may extract RTL runs in visual order
     assert "2,800" in text and "2026-0007" in text
+    page_label = "עמוד"  # @page bottom-center counter — guards a known WeasyPrint @page regression
+    assert page_label in text or page_label[::-1] in text
+
+
+def test_receipt_pdf_unknown_payment_method_no_crash():
+    ctx = {**CTX, "receipt": {**CTX["receipt"], "paymentMethod": "wire"}}
+    pdf = render_pdf("receipt.html", ctx)  # payment_labels.get() fallback — must not KeyError
+    assert pdf[:5] == b"%PDF-"
