@@ -81,7 +81,11 @@ def receipts_count(db, business_id: str, year: int) -> int:
 # ---------------------------------------------------------------------------
 
 def _weighted_amount(e: dict) -> float:
-    """Deductible (tax-relevant) amount: raw amount × businessUsePercent / 100."""
+    """Deductible (tax-relevant) amount: raw amount × businessUsePercent / 100.
+    NOTE: total_expenses/expenses_by_category report the DEDUCTIBLE total (used for
+    estimated_profit and the annual report), NOT gross spend. Per-expense round + a final
+    round is intentional double-rounding (max drift ~0.005×N agora — immaterial).
+    Phase 5 dashboard: decide whether to label this "הוצאות מוכרות" or add a gross metric."""
     pct = e.get("businessUsePercent")
     if pct is None:
         pct = 100
