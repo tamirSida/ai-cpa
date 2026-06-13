@@ -97,3 +97,13 @@ def stub_receipt_assets(monkeypatch):
     monkeypatch.setattr("app.services.receipt_service.render_pdf", lambda name, ctx: b"%PDF-1.7 stub")
     monkeypatch.setattr("app.services.receipt_service.upload_pdf", lambda data, public_id: UploadResult(
         secure_url=f"https://res.cloudinary.com/demo/raw/upload/{public_id}", public_id=public_id))
+
+
+@pytest.fixture
+def stub_parser(api):
+    from app.services.openai_service import get_command_parser
+    from tests.stubs import StubCommandParser
+    stub = StubCommandParser()
+    api.app.dependency_overrides[get_command_parser] = lambda: stub
+    yield stub
+    api.app.dependency_overrides.pop(get_command_parser, None)
