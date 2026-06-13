@@ -6,6 +6,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 class _Camel(BaseModel):
+    # Local base (NOT app.schemas.common.CamelModel) precisely because it adds use_enum_values=True:
+    # ExpenseCategory is the only CamelModel-domain Enum field, and we want it persisted to Firestore
+    # as a plain string ("software"), not an enum member. The shared CamelModel is left untouched so
+    # this config can't leak into the ~10 schemas that inherit it.
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, use_enum_values=True)
 
 class ExpenseCategory(str, Enum):
@@ -25,7 +29,7 @@ class Expense(_Camel):
     currency: Literal["ILS"] = "ILS"
     category: Optional[ExpenseCategory] = None
     description: Optional[str] = None
-    business_use_percent: int = 100
+    business_use_percent: int = Field(default=100, ge=0, le=100)
     image_url: Optional[str] = None
     cloudinary_public_id: Optional[str] = None
     ocr_text: Optional[str] = None
@@ -40,7 +44,7 @@ class ExpenseCreate(_Camel):
     amount: Optional[float] = Field(default=None, gt=0)   # amount <= 0 -> FastAPI 422
     category: Optional[ExpenseCategory] = None
     description: Optional[str] = None
-    business_use_percent: Optional[int] = None            # clamped 0-100 in service, default 100
+    business_use_percent: Optional[int] = Field(default=None, ge=0, le=100)  # service defaults to 100
     image_url: Optional[str] = None                       # set by upload route only
     cloudinary_public_id: Optional[str] = None
 
@@ -50,4 +54,4 @@ class ExpensePatch(_Camel):   # exactly the editable whitelist — nothing else 
     amount: Optional[float] = Field(default=None, gt=0)
     category: Optional[ExpenseCategory] = None
     description: Optional[str] = None
-    business_use_percent: Optional[int] = None
+    business_use_percent: Optional[int] = Field(default=None, ge=0, le=100)

@@ -185,7 +185,7 @@ def _execute_expense(db, business, payload, action_ref):
     from app.services import expense_service          # Phase 4 module — imported lazily on purpose
     from app.schemas.expense import ExpenseCreate
     expense = expense_service.create_expense(db, business.id, ExpenseCreate(
-        supplier_name=payload.get("supplier_name"), amount=round_ils(payload["amount"]), currency="ILS",
+        supplier_name=payload.get("supplier_name"), amount=round_ils(payload["amount"]),
         category=payload.get("category"), description=payload.get("description"),
         business_use_percent=payload.get("business_use_percent") or 100,
         expense_date=payload.get("expense_date")), source="chat")
