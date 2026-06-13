@@ -38,3 +38,18 @@ def test_concurrent_issue_assigns_unique_sequential_numbers(db, make_business, s
     events = list(db.collection("businesses").document(biz.id).collection("ledgerEvents")
                   .where(filter=rs.FieldFilter("type", "==", "receipt_issued")).stream())
     assert len(events) == 10
+
+
+def test_issue_pdf_failure_still_issues(db, make_business, monkeypatch):
+    # PDF/upload failure post-commit must NOT roll back issuance: the receipt is legally
+    # issued (number + counter + ledger event committed), just without a pdfUrl.
+    monkeypatch.setattr("app.services.receipt_service.render_pdf",
+                        lambda name, ctx: (_ for _ in ()).throw(RuntimeError("render boom")))
+    biz = Business.model_validate(make_business())
+    issued = rs.issue_receipt(db, biz.id, _draft(db, biz).id)
+    assert issued.receipt_number == "2026-0001" and issued.sequence_number == 1
+    assert issued.status == "issued" and issued.pdf_url is None
+    assert db.collection("businesses").document(biz.id).get().get("nextReceiptNumber") == 2
+    events = list(db.collection("businesses").document(biz.id).collection("ledgerEvents")
+                  .where(filter=rs.FieldFilter("type", "==", "receipt_issued")).stream())
+    assert len(events) == 1

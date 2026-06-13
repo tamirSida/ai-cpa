@@ -69,6 +69,8 @@ def cancel_receipt(db, business_id: str, receipt_id: str, reason: str) -> Receip
 def issue_receipt(db, business_id: str, receipt_id: str) -> Receipt:
     business_ref = db.collection("businesses").document(business_id)
     receipt_ref = _col(db, business_id).document(receipt_id)
+    # Non-transactional read: an optimisation to route the repair path, NOT a safety gate.
+    # The authoritative status/draft check is the transactional read inside _issue (raises 409).
     pre = receipt_ref.get()
     if not pre.exists:
         api_error(404, "receipt_not_found", "קבלה לא נמצאה")
@@ -85,6 +87,8 @@ def issue_receipt(db, business_id: str, receipt_id: str) -> Receipt:
         if biz.get("businessType") != "osek_patur":
             api_error(409, "unsupported_business_type", "נתמך רק עוסק פטור")
         if rec["status"] != "draft":
+            # HTTPException is not a Firestore Aborted error, so the transaction wrapper
+            # propagates it immediately — it does NOT burn the retry budget.
             api_error(409, "receipt_not_draft", "ניתן להנפיק רק קבלה בסטטוס טיוטה")
         sequence = biz["nextReceiptNumber"]          # ONE continuous sequence, never resets
         number = f"{biz['receiptPrefix']}-{sequence:04d}"
