@@ -66,3 +66,22 @@ def test_cancel_executed_action_is_409(db, pending_receipt):
     with pytest.raises(HTTPException) as e:
         chat_service.cancel_action(db, biz.id, action_id)
     assert e.value.status_code == 409 and e.value.detail["code"] == "action_not_cancellable"
+
+def test_retry_after_issue_failure_does_not_duplicate_receipt(db, pending_receipt, monkeypatch):
+    biz, action_id = pending_receipt
+    calls = {"n": 0}
+    real_issue = chat_service.receipt_service.issue_receipt
+    def flaky_issue(db_, bid, draft_id):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("transient issue failure")
+        return real_issue(db_, bid, draft_id)
+    monkeypatch.setattr("app.services.receipt_service.issue_receipt", flaky_issue)
+    first = chat_service.confirm_action(db, None, biz, action_id)   # fails -> reverts to pending
+    assert "אירעה שגיאה" in first.assistant_text
+    second = chat_service.confirm_action(db, None, biz, action_id)  # retry -> SAME draft re-issued
+    assert second.result["receiptNumber"].endswith("-0001")        # still the FIRST number, no duplicate
+    # exactly ONE issued receipt exists for the business
+    issued = [d.to_dict() for d in db.collection("businesses").document(biz.id).collection("receipts")
+              .where(filter=chat_service.FieldFilter("status", "==", "issued")).stream()]
+    assert len(issued) == 1 and issued[0]["receiptNumber"].endswith("-0001")

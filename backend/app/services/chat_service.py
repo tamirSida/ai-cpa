@@ -133,6 +133,10 @@ def _upsert_action(db, business_id, thread_id, action_id, intent, status, payloa
     return action_id
 
 def _flip_to_confirmed(db, action_ref) -> dict:
+    # Known limitation: a process crash between this confirmed-flip commit and executor
+    # completion strands the action in "confirmed" — the stale-cleanup only sweeps
+    # collecting_fields/pending_confirmation, so it won't recover it. Acceptable for the
+    # single-user MVP; a future sweep could re-drive or revert stuck "confirmed" actions.
     tx = db.transaction()
     @firestore.transactional
     def flip(transaction):
@@ -146,27 +150,38 @@ def _flip_to_confirmed(db, action_ref) -> dict:
         return data
     return flip(tx)
 
-def _execute_receipt(db, business: Business, payload: dict):
-    name = payload["client_name"].strip()
-    exact = [c for c in client_service.find_clients_by_name(db, business.id, name) if c.name.strip() == name]
-    client_id = exact[0].id if len(exact) == 1 else None
-    # create_draft builds the clientSnapshot itself: full client doc when client_id
-    # resolves, name-only otherwise (Task 2.3) — ReceiptDraftCreate has no snapshot field
-    draft = receipt_service.create_draft(db, business, ReceiptDraftCreate(
-        client_id=client_id, client_name=name, amount=round_ils(payload["amount"]), currency="ILS",
-        payment_method=payload.get("payment_method") or "unknown",
-        description=payload["description"]))
-    receipt = receipt_service.issue_receipt(db, business.id, draft.id)
+def _execute_receipt(db, business: Business, payload: dict, action_ref):
+    existing_draft_id = payload.get("_draftId")
+    if existing_draft_id:
+        # retry after a prior issue failure: re-issue the SAME draft (issue_receipt is
+        # idempotent on a draft -> issued, and repairs an issued-without-pdf receipt),
+        # so a confirm-retry never mints a second receipt number.
+        receipt = receipt_service.issue_receipt(db, business.id, existing_draft_id)
+    else:
+        name = payload["client_name"].strip()
+        # create_draft builds the clientSnapshot itself: full client doc when client_id
+        # resolves, name-only otherwise (Task 2.3) — ReceiptDraftCreate has no snapshot field
+        exact = [c for c in client_service.find_clients_by_name(db, business.id, name) if c.name.strip() == name]
+        client_id = exact[0].id if len(exact) == 1 else None
+        draft = receipt_service.create_draft(db, business, ReceiptDraftCreate(
+            client_id=client_id, client_name=name, amount=round_ils(payload["amount"]), currency="ILS",
+            payment_method=payload.get("payment_method") or "unknown",
+            description=payload["description"]))
+        # persist the draft id BEFORE issuing, so a crash/throw during issue lets the retry
+        # re-issue this same draft instead of creating a new one.
+        action_ref.update({"payload._draftId": draft.id})
+        payload["_draftId"] = draft.id
+        receipt = receipt_service.issue_receipt(db, business.id, draft.id)
     return (f"נוצרה קבלה מספר {receipt.receipt_number}.",
             {"receiptId": receipt.id, "receiptNumber": receipt.receipt_number, "pdfUrl": receipt.pdf_url})
 
-def _execute_contact(db, business, payload):
+def _execute_contact(db, business, payload, action_ref):
     client = client_service.create_client(db, business.id, ClientCreate(
         name=payload["name"], phone=payload.get("phone"), email=payload.get("email"),
         company_name=payload.get("company_name"), tax_id=payload.get("tax_id"), address=payload.get("address")))
     return f"איש הקשר {client.name} נוסף בהצלחה.", {"clientId": client.id}
 
-def _execute_expense(db, business, payload):
+def _execute_expense(db, business, payload, action_ref):
     from app.services import expense_service          # Phase 4 module — imported lazily on purpose
     from app.schemas.expense import ExpenseCreate
     expense = expense_service.create_expense(db, business.id, ExpenseCreate(
@@ -179,7 +194,7 @@ def _execute_expense(db, business, payload):
 
 _EXECUTORS = {"CREATE_RECEIPT": _execute_receipt, "CREATE_CONTACT": _execute_contact,
               "CREATE_EXPENSE": _execute_expense,
-              "GENERATE_ANNUAL_REPORT": lambda db, business, payload:
+              "GENERATE_ANNUAL_REPORT": lambda db, business, payload, action_ref:
                   (f"מעולה. אפשר להפיק את הדוח השנתי לשנת {payload['year']} בעמוד הדוח השנתי.",
                    {"year": payload["year"], "link": "/annual-report"})}
 
@@ -188,7 +203,7 @@ def confirm_action(db, parser_or_none, business: Business, action_id: str) -> Ex
     data = _flip_to_confirmed(db, action_ref)
     thread_id, payload = data["threadId"], data["payload"]
     try:
-        reply, result = _EXECUTORS[data["type"]](db, business, payload)
+        reply, result = _EXECUTORS[data["type"]](db, business, payload, action_ref)
     except Exception as exc:                          # revert: user can confirm again
         action_ref.update({"status": "pending_confirmation", "errorNote": str(exc), "updatedAt": now_il()})
         reply = "אירעה שגיאה בביצוע הפעולה. אפשר לנסות לאשר שוב."
