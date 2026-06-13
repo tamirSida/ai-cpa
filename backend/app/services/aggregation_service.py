@@ -154,6 +154,9 @@ def recent_receipts(db, business_id: str, limit: int = 5) -> list[dict]:
 
 
 def recent_expenses(db, business_id: str, limit: int = 5) -> list[dict]:
+    """Most-recent expenses regardless of status (needs_review/approved/rejected) — the
+    dashboard 'recent activity' widget shows all of them. Bare order_by on a subcollection
+    uses Firestore's automatic single-field index (no composite needed)."""
     q = (_subcol(db, business_id, "expenses")
          .order_by("createdAt", direction=firestore.Query.DESCENDING)
          .limit(limit))
