@@ -22,6 +22,7 @@ export default function ExpenseReviewSheet({ businessId, expense, onClose, onSav
     businessUsePercent: expense.businessUsePercent.toString(),
   });
   const [amountError, setAmountError] = useState("");
+  const [pctError, setPctError] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState<"approve" | "reject" | null>(null);
 
@@ -37,8 +38,18 @@ export default function ExpenseReviewSheet({ businessId, expense, onClose, onSav
     return true;
   }
 
+  function validatePct(): boolean {
+    const n = Number(form.businessUsePercent);
+    if (Number.isNaN(n) || n < 0 || n > 100) {
+      setPctError("אחוז שימוש עסקי חייב להיות בין 0 ל-100");
+      return false;
+    }
+    setPctError("");
+    return true;
+  }
+
   async function approve() {
-    if (!validateAmount()) return;
+    if (!validateAmount() || !validatePct()) return;
     setPending("approve");
     setError("");
     try {
@@ -120,9 +131,10 @@ export default function ExpenseReviewSheet({ businessId, expense, onClose, onSav
           <span className="mb-1 block text-sm font-medium">אחוז שימוש עסקי</span>
           <input
             type="number" inputMode="numeric" min="0" max="100" dir="ltr"
-            value={form.businessUsePercent} onChange={set("businessUsePercent")}
+            value={form.businessUsePercent} onChange={set("businessUsePercent")} onBlur={validatePct}
             disabled={!editable} className={`${inputClass} tnum`}
           />
+          {pctError && <p className="mt-1 text-sm text-destructive">{pctError}</p>}
         </label>
         {error && <p className="text-sm text-destructive">{error}</p>}
         {editable && (

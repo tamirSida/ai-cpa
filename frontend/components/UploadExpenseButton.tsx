@@ -57,7 +57,7 @@ export default function UploadExpenseButton({ businessId, onUploaded }:
           disabled={busy}
           className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-border bg-white px-5 font-medium text-foreground transition-transform duration-150 active:scale-[0.98] disabled:opacity-50"
         >
-          <ImageUp size={20} aria-hidden />
+          {busy ? <Loader2 size={20} className="animate-spin" aria-hidden /> : <ImageUp size={20} aria-hidden />}
           העלאה מהגלריה
         </button>
       </div>
