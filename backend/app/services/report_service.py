@@ -1,7 +1,11 @@
 # backend/app/services/report_service.py
+import csv
+import io
+
 from app.schemas.business import Business
 from app.schemas.report import PrecheckResult
 from app.services import aggregation_service, expense_service, receipt_service
+from app.utils.money import round_ils
 
 _PROFILE_FIELDS = [("business_name", "businessName"), ("owner_name", "ownerName"),
                    ("business_id_number", "businessIdNumber"), ("address", "address"),
@@ -28,9 +32,6 @@ def precheck(db, business: Business, year: int) -> PrecheckResult:
                           receipts_missing_pdf=missing_pdf, cancelled_receipts=cancelled,
                           missing_business_fields=missing_profile, total_revenue=ts.total,
                           threshold_warning=ts.warning, issues_count=sum(len(x) for x in lists))
-
-import csv, io
-from app.utils.money import round_ils
 
 def _csv_bytes(header: list[str], rows: list[list]) -> bytes:
     out = io.StringIO()
