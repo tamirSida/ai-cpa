@@ -6,10 +6,9 @@ from app.core.errors import api_error
 from app.schemas.business import Business
 from app.schemas.receipt import ClientSnapshot, Receipt, ReceiptDraftCreate
 from app.services.client_service import get_client
-# Temporarily commented until Tasks 2.5/2.6 land; uncommented in Task 2.7.
-# from app.services.cloudinary_service import upload_pdf
+from app.services.cloudinary_service import upload_pdf
 from app.services.ledger_service import record_event
-# from app.services.pdf_service import render_pdf
+from app.services.pdf_service import render_pdf
 from app.utils.dates import now_il, parse_iso_date, today_il
 from app.utils.money import round_ils
 
@@ -66,6 +65,56 @@ def cancel_receipt(db, business_id: str, receipt_id: str, reason: str) -> Receip
         return {**rec, **updates, "id": snap.id}
 
     return Receipt.model_validate(_cancel(transaction))
+
+def issue_receipt(db, business_id: str, receipt_id: str) -> Receipt:
+    business_ref = db.collection("businesses").document(business_id)
+    receipt_ref = _col(db, business_id).document(receipt_id)
+    pre = receipt_ref.get()
+    if not pre.exists:
+        api_error(404, "receipt_not_found", "קבלה לא נמצאה")
+    pre_data = pre.to_dict()
+    if pre_data["status"] == "issued" and not pre_data.get("pdfUrl"):
+        _attach_pdf(db, business_id, receipt_ref)   # retry path: repair PDF, never re-number
+        return Receipt.model_validate(receipt_ref.get().to_dict())
+
+    @firestore.transactional
+    def _issue(tx):
+        biz_snap = business_ref.get(transaction=tx)
+        rec_snap = receipt_ref.get(transaction=tx)
+        biz, rec = biz_snap.to_dict(), rec_snap.to_dict()
+        if biz.get("businessType") != "osek_patur":
+            api_error(409, "unsupported_business_type", "נתמך רק עוסק פטור")
+        if rec["status"] != "draft":
+            api_error(409, "receipt_not_draft", "ניתן להנפיק רק קבלה בסטטוס טיוטה")
+        sequence = biz["nextReceiptNumber"]          # ONE continuous sequence, never resets
+        number = f"{biz['receiptPrefix']}-{sequence:04d}"
+        now = now_il()
+        tx.update(receipt_ref, {"receiptNumber": number, "sequenceNumber": sequence,
+                                "status": "issued", "issuedAt": now,
+                                "issueDate": rec.get("issueDate") or today_il().isoformat()})
+        tx.update(business_ref, {"nextReceiptNumber": sequence + 1, "updatedAt": now})
+        record_event(tx, business_id, type="receipt_issued", entity_type="receipt",
+                     entity_id=receipt_id, amount=rec["amount"], metadata={"receiptNumber": number})
+
+    # Each concurrent issuer contends for the single nextReceiptNumber counter; one continuous
+    # sequence means a writer can lose the optimistic-concurrency race up to (N-1) times. Default
+    # max_attempts=5 is too low for bursty issuing, so widen the retry budget — the numbering logic
+    # is unchanged, only the retry count.
+    _issue(db.transaction(max_attempts=25))  # auto-retried on contention -> atomic, gapless numbering
+    try:
+        _attach_pdf(db, business_id, receipt_ref)
+    except Exception:
+        # Receipt is legally issued without a PDF; Phase 6 precheck flags "receipts missing PDFs"
+        # and re-POSTing /issue hits the repair branch above.
+        logger.exception("post-commit PDF/upload failed for receipt %s", receipt_id)
+    return Receipt.model_validate(receipt_ref.get().to_dict())
+
+def _attach_pdf(db, business_id: str, receipt_ref) -> None:
+    rec = receipt_ref.get().to_dict()
+    biz = db.collection("businesses").document(business_id).get().to_dict()
+    pdf = render_pdf("receipt.html", {"business": biz, "receipt": rec})
+    up = upload_pdf(pdf, public_id=f"receipts/{business_id}/{rec['receiptNumber']}.pdf")
+    receipt_ref.update({"pdfUrl": up.secure_url, "cloudinaryPublicId": up.public_id})
 
 def list_receipts(db, business_id: str, status: str | None = None, year: int | None = None) -> list[Receipt]:
     q = _col(db, business_id)

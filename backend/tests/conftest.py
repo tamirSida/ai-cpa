@@ -89,3 +89,11 @@ def make_business(db):
         return doc
 
     return _make
+
+
+@pytest.fixture
+def stub_receipt_assets(monkeypatch):
+    from app.services.cloudinary_service import UploadResult
+    monkeypatch.setattr("app.services.receipt_service.render_pdf", lambda name, ctx: b"%PDF-1.7 stub")
+    monkeypatch.setattr("app.services.receipt_service.upload_pdf", lambda data, public_id: UploadResult(
+        secure_url=f"https://res.cloudinary.com/demo/raw/upload/{public_id}", public_id=public_id))
