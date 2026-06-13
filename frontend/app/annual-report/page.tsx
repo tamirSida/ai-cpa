@@ -24,7 +24,8 @@ type CheckKey =
   | "uncategorizedExpenses"
   | "receiptsMissingPdf"
   | "cancelledReceipts"
-  | "missingBusinessFields";
+  | "missingBusinessFields"
+  | "receiptsMissingPayerAddress";
 
 const CHECKS: { key: CheckKey; label: string; fixHref: string; fixLabel: string }[] = [
   { key: "expensesNeedingReview", label: "הוצאות שדורשות בדיקה", fixHref: "/expenses", fixLabel: "מעבר להוצאות" },
@@ -33,6 +34,7 @@ const CHECKS: { key: CheckKey; label: string; fixHref: string; fixLabel: string 
   { key: "receiptsMissingPdf", label: "קבלות ללא PDF", fixHref: "/receipts", fixLabel: "מעבר לקבלות" },
   { key: "cancelledReceipts", label: "קבלות מבוטלות", fixHref: "/receipts", fixLabel: "מעבר לקבלות" },
   { key: "missingBusinessFields", label: "פרטי עסק חסרים", fixHref: "/dashboard", fixLabel: "מעבר לפרטי העסק" },
+  { key: "receiptsMissingPayerAddress", label: "קבלות ללא כתובת לקוח", fixHref: "/receipts", fixLabel: "מעבר לקבלות" },
 ];
 
 const CURRENT_YEAR = new Date().getFullYear();

@@ -13,6 +13,9 @@ type FieldKey =
   | "address"
   | "phone"
   | "email"
+  | "bankName"
+  | "bankBranch"
+  | "bankAccount"
   | "receiptPrefix";
 
 type FieldDef = {
@@ -31,6 +34,9 @@ const FIELDS: FieldDef[] = [
   { key: "address", label: "כתובת", type: "text", autoComplete: "street-address" },
   { key: "phone", label: "טלפון (רשות)", type: "tel", ltr: true, autoComplete: "tel" },
   { key: "email", label: "אימייל (רשות)", type: "email", ltr: true, autoComplete: "email" },
+  { key: "bankName", label: "בנק (רשות)", type: "text" },
+  { key: "bankBranch", label: "סניף (רשות)", type: "text", inputMode: "numeric", ltr: true },
+  { key: "bankAccount", label: "מספר חשבון (רשות)", type: "text", inputMode: "numeric", ltr: true },
   { key: "receiptPrefix", label: "קידומת מספרי קבלות", type: "text", inputMode: "numeric", ltr: true },
 ];
 
@@ -48,6 +54,12 @@ function validateField(key: FieldKey, value: string): string | null {
       return null; // אופציונלי — השרת מקבל כל מחרוזת
     case "email":
       return !value || /^\S+@\S+\.\S+$/.test(value) ? null : "כתובת אימייל לא תקינה";
+    case "bankName":
+      return null; // אופציונלי
+    case "bankBranch":
+      return null; // אופציונלי
+    case "bankAccount":
+      return null; // אופציונלי
     case "receiptPrefix":
       return value.trim() && value.trim().length <= 10 ? null : "יש להזין קידומת של עד 10 תווים";
   }
@@ -60,7 +72,8 @@ function OnboardingForm() {
   const editMode = searchParams.get("edit") === "1" && business !== null;
   const [form, setForm] = useState<Record<FieldKey, string>>({
     businessName: "", ownerName: "", businessIdNumber: "", address: "",
-    phone: "", email: "", receiptPrefix: String(new Date().getFullYear()),
+    phone: "", email: "", bankName: "", bankBranch: "", bankAccount: "",
+    receiptPrefix: String(new Date().getFullYear()),
   });
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldKey, string>>>({});
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +89,9 @@ function OnboardingForm() {
       address: business.address ?? "",
       phone: business.phone ?? "",
       email: business.email ?? "",
+      bankName: business.bankName ?? "",
+      bankBranch: business.bankBranch ?? "",
+      bankAccount: business.bankAccount ?? "",
       receiptPrefix: business.receiptPrefix,
     });
   }, [editMode, business]);
@@ -113,6 +129,9 @@ function OnboardingForm() {
             address: form.address,
             phone: form.phone || null,
             email: form.email || null,
+            bankName: form.bankName || null,
+            bankBranch: form.bankBranch || null,
+            bankAccount: form.bankAccount || null,
             receiptPrefix: form.receiptPrefix,
           }),
         });
@@ -121,7 +140,7 @@ function OnboardingForm() {
       } else {
         await api("/businesses", {
           method: "POST",
-          body: JSON.stringify({ ...form, phone: form.phone || null, email: form.email || null }),
+          body: JSON.stringify({ ...form, phone: form.phone || null, email: form.email || null, bankName: form.bankName || null, bankBranch: form.bankBranch || null, bankAccount: form.bankAccount || null }),
         });
         await refresh();
         router.replace("/dashboard");

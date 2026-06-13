@@ -46,6 +46,13 @@ export default function ReceiptList({
               <div className="mt-1 text-sm text-foreground/60">
                 <span dir="ltr">{r.issueDate}</span>
               </div>
+              {r.checkDetails && (
+                <div className="mt-1 text-sm text-foreground/60">
+                  צ'ק: מס׳ <span className="tnum" dir="ltr">{r.checkDetails.number}</span> · {r.checkDetails.bank} · סניף{" "}
+                  <span className="tnum" dir="ltr">{r.checkDetails.branch}</span> · פירעון{" "}
+                  <span className="tnum" dir="ltr">{r.checkDetails.dueDate}</span>
+                </div>
+              )}
             </button>
           </li>
         ))}
