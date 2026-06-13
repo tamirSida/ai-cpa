@@ -6860,6 +6860,8 @@ export default function MonthlyIncomeChart({ data }: { data: MonthlyIncomeEntry[
 
 ### Task 5.7: Dashboard cards and page
 
+> **As-built note (commits 8b40186, fe9512a):** the expenses stat is labeled "הוצאות מוכרות" (recognized/deductible), honoring the Task 4.5/5.3 decision. Post-review fixes: EmptyState shows only for a truly-fresh business (no receipts AND no recent expenses AND no income — not just zero receipts); the threshold progressbar has `aria-label`; the dashboard fetch error renders a "נסה שנית" retry button (reloadKey re-runs the fetch); a negative estimated-profit renders in `text-destructive`.
+
 **Files:**
 - Create: `frontend/components/ThresholdProgress.tsx`
 - Create: `frontend/components/DashboardCards.tsx`
