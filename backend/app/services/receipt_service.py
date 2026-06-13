@@ -49,16 +49,23 @@ def cancel_receipt(db, business_id: str, receipt_id: str, reason: str) -> Receip
     if not reason or not reason.strip():
         api_error(422, "missing_cancellation_reason", "נדרשת סיבת ביטול")
     ref = _col(db, business_id).document(receipt_id)
-    snap = ref.get()
-    if not snap.exists:
-        api_error(404, "receipt_not_found", "קבלה לא נמצאה")
-    rec = snap.to_dict()
-    if rec["status"] != "issued":
-        api_error(409, "receipt_not_issued", "ניתן לבטל רק קבלה שהונפקה")
-    ref.update({"status": "cancelled", "cancellationReason": reason.strip(), "cancelledAt": now_il()})
-    record_event(db, business_id, type="receipt_cancelled", entity_type="receipt",
-                 entity_id=receipt_id, amount=rec["amount"], metadata={"reason": reason.strip()})
-    return Receipt.model_validate(ref.get().to_dict())
+    transaction = db.transaction()
+
+    @firestore.transactional
+    def _cancel(tx) -> dict:
+        snap = ref.get(transaction=tx)
+        if not snap.exists:
+            api_error(404, "receipt_not_found", "קבלה לא נמצאה")
+        rec = snap.to_dict()
+        if rec["status"] != "issued":
+            api_error(409, "receipt_not_issued", "ניתן לבטל רק קבלה שהונפקה")
+        updates = {"status": "cancelled", "cancellationReason": reason.strip(), "cancelledAt": now_il()}
+        tx.update(ref, updates)
+        record_event(tx, business_id, type="receipt_cancelled", entity_type="receipt",
+                     entity_id=receipt_id, amount=rec["amount"], metadata={"reason": reason.strip()})
+        return {**rec, **updates, "id": snap.id}
+
+    return Receipt.model_validate(_cancel(transaction))
 
 def list_receipts(db, business_id: str, status: str | None = None, year: int | None = None) -> list[Receipt]:
     q = _col(db, business_id)

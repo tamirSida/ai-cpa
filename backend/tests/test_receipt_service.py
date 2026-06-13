@@ -47,3 +47,17 @@ def test_cancel_requires_issued_status(db, make_business):
     with pytest.raises(HTTPException) as e:
         rs.cancel_receipt(db, biz.id, r.id, "טעות")
     assert e.value.status_code == 409 and e.value.detail["code"] == "receipt_not_issued"
+
+def test_cancel_issued_receipt_atomic(db, make_business):
+    biz = make_business()
+    business = Business.model_validate(biz)
+    draft = rs.create_draft(db, business, ReceiptDraftCreate(client_name="נועה", amount=100, description="עיצוב"))
+    # simulate issued state (issuing transaction itself lands in Task 2.7)
+    db.collection("businesses").document(biz["id"]).collection("receipts") \
+        .document(draft.id).update({"status": "issued", "receiptNumber": "2026-0001"})
+    rec = rs.cancel_receipt(db, biz["id"], draft.id, "טעות בסכום")
+    assert rec.status == "cancelled" and rec.cancellation_reason == "טעות בסכום"
+    assert rec.cancelled_at is not None
+    events = list(db.collection("businesses").document(biz["id"])
+                  .collection("ledgerEvents").stream())
+    assert any(e.to_dict()["type"] == "receipt_cancelled" for e in events)
