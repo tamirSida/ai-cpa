@@ -1,6 +1,9 @@
 # backend/app/services/report_service.py
 import csv
 import io
+import logging
+
+logger = logging.getLogger(__name__)
 
 from app.schemas.business import Business
 from app.schemas.report import PrecheckResult
@@ -138,12 +141,18 @@ def generate_zip(db, business: Business, year: int) -> io.BytesIO:
     warnings = ([f"{check.issues_count} פריטים חסרים או דורשים בדיקה"] if check.issues_count else []) \
         + (["מתקרב לתקרת עוסק פטור"] if check.threshold_warning else []) \
         + [f"קובץ לא הורד: {m}" for m in fetch_failures]
-    db.collection("businesses").document(business.id).collection("annualReports") \
-        .document(str(year)).set({"id": str(year), "businessId": business.id, "year": year,
-                                  "totalIncome": total_income, "totalExpenses": total_expenses,
-                                  "estimatedProfit": estimated_profit, "warnings": warnings,
-                                  "generatedAt": now_il()})
-    ledger_service.record_event(db, business.id, type="annual_report_generated",
-                                entity_type="annual_report", entity_id=str(year),
-                                metadata={"warnings": warnings})
+    # Best-effort audit writes: the ZIP is already assembled, so a transient Firestore failure
+    # here must NOT deny the user their year-end package. Log and still return the ZIP.
+    try:
+        db.collection("businesses").document(business.id).collection("annualReports") \
+            .document(str(year)).set({"id": str(year), "businessId": business.id, "year": year,
+                                      "totalIncome": total_income, "totalExpenses": total_expenses,
+                                      "estimatedProfit": estimated_profit, "warnings": warnings,
+                                      "generatedAt": now_il()})
+        ledger_service.record_event(db, business.id, type="annual_report_generated",
+                                    entity_type="annual_report", entity_id=str(year),
+                                    metadata={"warnings": warnings})
+    except Exception:
+        logger.exception("annual report metadata/ledger write failed for business %s year %s",
+                         business.id, year)
     return buf
