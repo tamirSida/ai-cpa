@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
 from app.core.firebase import init_firebase
-from app.routers import businesses, chat, clients, receipts
+from app.routers import businesses, chat, clients, expenses, receipts
 
 settings = get_settings()
 
@@ -30,6 +30,7 @@ app.add_middleware(
 app.include_router(businesses.router, prefix="/api")
 app.include_router(clients.router, prefix="/api")
 app.include_router(receipts.router, prefix="/api")
+app.include_router(expenses.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 
 
