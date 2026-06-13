@@ -53,6 +53,8 @@ def update_business(db: firestore.Client, business_id: str, patch: BusinessUpdat
         api_error(400, "no_updatable_fields", "No mutable fields provided")
     updates["updatedAt"] = now_il()
     ref = db.collection("businesses").document(business_id)
+    if not ref.get().exists:
+        api_error(404, "business_not_found", "Business not found")
     ref.update(updates)
     snap = ref.get()
     return Business.model_validate({**snap.to_dict(), "id": snap.id})

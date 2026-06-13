@@ -42,3 +42,10 @@ def test_update_business_mutable_fields_only(db):
     assert updated.business_name == "סטודיו נועה"
     assert updated.receipt_prefix == "2027"
     assert updated.next_receipt_number == 1  # untouched
+
+
+def test_update_nonexistent_business_404(db):
+    with pytest.raises(HTTPException) as exc:
+        business_service.update_business(db, "does-not-exist", BusinessUpdate(business_name="X"))
+    assert exc.value.status_code == 404
+    assert exc.value.detail["code"] == "business_not_found"
