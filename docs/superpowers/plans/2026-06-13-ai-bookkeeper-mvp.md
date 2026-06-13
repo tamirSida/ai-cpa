@@ -6534,7 +6534,7 @@ def receipts_missing_pdf_count(db, business_id: str) -> int:
 
 ### Task 5.3: dashboard_service with Hebrew warnings builder
 
-> **Decision required (from Task 4.5 review):** `aggregation_service.total_expenses` reports the DEDUCTIBLE (business_use_percent-weighted) total, not gross spend. For the dashboard, decide deliberately: either label the weighted figure honestly as "הוצאות מוכרות" (recognized/deductible expenses), OR add a parallel gross-spend metric and show both ("סך ההוצאות" gross + "הוצאות מוכרות" deductible). `estimated_profit` must stay revenue − DEDUCTIBLE. Don't silently ship a "total expenses" widget that's actually the deductible total.
+> **Decision (resolved, commit honoring Task 4.5 review):** the dashboard keeps the DEDUCTIBLE (business_use_percent-weighted) `expenses_this_year` and `estimated_profit = income − deductible`; NO parallel gross metric is added (most עוסק פטור expenses are 100% business-use, so a gross/deductible split is over-engineering for the MVP). The honesty requirement is met on the FRONTEND: **Task 5.7 must label this figure "הוצאות מוכרות" (recognized/deductible), not "סך הוצאות"/"total spent".**
 
 **Files:**
 - Create: `backend/app/services/dashboard_service.py`
