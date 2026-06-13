@@ -63,13 +63,25 @@ def save_message(db, business_id, thread_id, role, text, action_id=None, parsed_
 def _load_active_action(db, business_id, thread_id):
     q = _actions_col(db, business_id).where(filter=FieldFilter("threadId", "==", thread_id)) \
                                      .where(filter=FieldFilter("status", "in", list(ACTIVE_STATUSES)))
+    now = now_il()
+    fresh = []
     for doc in q.stream():
         data = doc.to_dict()
-        if now_il() - data["updatedAt"] > STALE_AFTER:
-            doc.reference.update({"status": "cancelled", "cancellationReason": "expired", "updatedAt": now_il()})
+        # Missing updatedAt (malformed/manually-edited doc) is treated as stale, never a 500.
+        updated_at = data.get("updatedAt")
+        if updated_at is None or now - updated_at > STALE_AFTER:
+            doc.reference.update({"status": "cancelled", "cancellationReason": "expired", "updatedAt": now})
             continue
-        return doc.id, data
-    return None
+        fresh.append((doc.id, data))
+    if not fresh:
+        return None
+    # A thread is single-active by design. If a race (concurrent sends) left duplicates,
+    # self-heal: keep the most-recently-updated, cancel the rest so state converges.
+    fresh.sort(key=lambda pair: pair[1]["updatedAt"], reverse=True)
+    for dup_id, _ in fresh[1:]:
+        _actions_col(db, business_id).document(dup_id).update(
+            {"status": "cancelled", "cancellationReason": "superseded", "updatedAt": now})
+    return fresh[0]
 
 def _action_view(action_id, data) -> ActionView:
     return ActionView(id=action_id, type=data["type"], status=data["status"],
@@ -140,7 +152,9 @@ def handle_message(db, parser, business: Business, thread_id: str, text: str) ->
     cmd = parser.parse_user_command(_build_context(db, business, thread_id, text, active), text)
     if isinstance(cmd, ParserFailure) or cmd.intent == IntentType.UNKNOWN:
         reply = FALLBACK + (("\n" + _current_question(active[1])) if active else "")
-        save_message(db, business.id, thread_id, "assistant", reply)
+        # store what the parser returned (failure reason or UNKNOWN) for auditability
+        parsed = cmd.model_dump(mode="json") if hasattr(cmd, "model_dump") else None
+        save_message(db, business.id, thread_id, "assistant", reply, parsed_intent=parsed)
         return ChatTurnResult(assistant_text=reply, action=_action_view(*active) if active else None)
     if cmd.intent == IntentType.QUERY:                                     # queries never create actions
         reply = _answer_query(db, business, cmd.query)
