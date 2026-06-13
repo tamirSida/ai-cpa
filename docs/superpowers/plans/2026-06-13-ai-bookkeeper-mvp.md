@@ -6763,6 +6763,8 @@ def get_dashboard(business: Business = Depends(get_owned_business), db=Depends(g
 
 ### Task 5.5: Composite Firestore indexes
 
+> **As-built note:** the index FILE is already complete (committed in f35063c during Task 5.2) and is a SUPERSET of this task's Step 1 JSON — it also includes `receipts (status ASC, clientSnapshot.name ASC)`, which `client_revenue` requires (Tasks 3.5/4.5) and which this task's Step 1 list omitted. Do NOT overwrite the file with the 3-index JSON below — that would drop the clientSnapshot.name index and FailedPrecondition `client_revenue` in prod. The 4 indexes in `firestore.indexes.json` are correct. **Steps 2-3 (`firebase deploy --only firestore:indexes` + real-Firestore verification) are BLOCKED on the dev Firebase project** (same dependency as Task 1.7) — the emulator does not enforce composite indexes, so all tests pass locally; the indexes must be deployed before the first prod query.
+
 **Files:**
 - Modify: `firestore.indexes.json` (created empty in Phase 0; this is the declarative union for all phases)
 
