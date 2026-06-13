@@ -29,7 +29,7 @@ class Expense(_Camel):
     currency: Literal["ILS"] = "ILS"
     category: Optional[ExpenseCategory] = None
     description: Optional[str] = None
-    business_use_percent: int = Field(default=100, ge=0, le=100)
+    business_use_percent: int = 100  # always 0-100 (service clamps inputs before building this record)
     image_url: Optional[str] = None
     cloudinary_public_id: Optional[str] = None
     ocr_text: Optional[str] = None
@@ -44,7 +44,7 @@ class ExpenseCreate(_Camel):
     amount: Optional[float] = Field(default=None, gt=0)   # amount <= 0 -> FastAPI 422
     category: Optional[ExpenseCategory] = None
     description: Optional[str] = None
-    business_use_percent: Optional[int] = Field(default=None, ge=0, le=100)  # service defaults to 100
+    business_use_percent: Optional[int] = None            # service clamps to 0-100, defaults to 100
     image_url: Optional[str] = None                       # set by upload route only
     cloudinary_public_id: Optional[str] = None
 
@@ -54,4 +54,4 @@ class ExpensePatch(_Camel):   # exactly the editable whitelist — nothing else 
     amount: Optional[float] = Field(default=None, gt=0)
     category: Optional[ExpenseCategory] = None
     description: Optional[str] = None
-    business_use_percent: Optional[int] = Field(default=None, ge=0, le=100)
+    business_use_percent: Optional[int] = None            # service clamps to 0-100
