@@ -3,6 +3,7 @@ from datetime import date
 from typing import Optional
 
 from pydantic import BaseModel
+from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 
 from app.core.config import get_settings
@@ -134,3 +135,45 @@ def threshold_status(db, business, year: int) -> ThresholdStatus:
     limit = float(business.annual_limit if business.annual_limit is not None else get_settings().annual_limit_ils)
     pct = round(total / limit * 100, 1) if limit != 0 else 0.0
     return ThresholdStatus(total=total, limit=limit, pct=pct, warning=pct >= 90)
+
+
+# ---------------------------------------------------------------------------
+# Dashboard helpers
+# ---------------------------------------------------------------------------
+
+def _subcol(db, business_id: str, name: str):
+    return db.collection("businesses").document(business_id).collection(name)
+
+
+def recent_receipts(db, business_id: str, limit: int = 5) -> list[dict]:
+    q = (_subcol(db, business_id, "receipts")
+         .where(filter=FieldFilter("status", "==", "issued"))
+         .order_by("issuedAt", direction=firestore.Query.DESCENDING)
+         .limit(limit))
+    return [d.to_dict() | {"id": d.id} for d in q.stream()]
+
+
+def recent_expenses(db, business_id: str, limit: int = 5) -> list[dict]:
+    q = (_subcol(db, business_id, "expenses")
+         .order_by("createdAt", direction=firestore.Query.DESCENDING)
+         .limit(limit))
+    return [d.to_dict() | {"id": d.id} for d in q.stream()]
+
+
+def approved_expenses_count(db, business_id: str, year: int) -> int:
+    q = (_subcol(db, business_id, "expenses")
+         .where(filter=FieldFilter("status", "==", "approved"))
+         .where(filter=FieldFilter("expenseDate", ">=", f"{year}-01-01"))
+         .where(filter=FieldFilter("expenseDate", "<=", f"{year}-12-31")))
+    return sum(1 for _ in q.stream())
+
+
+def needs_review_count(db, business_id: str) -> int:
+    q = _subcol(db, business_id, "expenses").where(filter=FieldFilter("status", "==", "needs_review"))
+    return sum(1 for _ in q.stream())
+
+
+def receipts_missing_pdf_count(db, business_id: str) -> int:
+    # Firestore cannot query for an absent field; issued receipts are few — filter in Python.
+    q = _subcol(db, business_id, "receipts").where(filter=FieldFilter("status", "==", "issued"))
+    return sum(1 for d in q.stream() if not d.to_dict().get("pdfUrl"))
