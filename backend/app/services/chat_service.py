@@ -137,7 +137,11 @@ def _flip_to_confirmed(db, action_ref) -> dict:
     # completion strands the action in "confirmed" — the stale-cleanup only sweeps
     # collecting_fields/pending_confirmation, so it won't recover it. Acceptable for the
     # single-user MVP; a future sweep could re-drive or revert stuck "confirmed" actions.
-    tx = db.transaction()
+    # max_attempts widened: under contention the emulator's pessimistic lock can raise a transient
+    # Aborted ("lock timeout") instead of letting the loser read the committed status. Retrying lets
+    # the loser acquire the lock, see "confirmed", and return the deterministic 409 (HTTPException is
+    # not Aborted, so it propagates without burning retries). Also helps real-Firestore contention.
+    tx = db.transaction(max_attempts=25)
     @firestore.transactional
     def flip(transaction):
         snap = action_ref.get(transaction=transaction)
