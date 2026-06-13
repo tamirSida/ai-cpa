@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     openai_command_model: str = "gpt-4.1-mini"
     openai_vision_model: str = "gpt-4.1-mini"
     cloudinary_url: str = ""
+    receipt_signing_p12_path: str = "secrets/receipt-signing.p12"
+    receipt_signing_p12_password: str = ""
     cors_origins: list[str] = ["http://localhost:3000"]
     annual_limit_ils: int = 122833
     env: str = "dev"
