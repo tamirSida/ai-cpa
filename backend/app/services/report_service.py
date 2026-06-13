@@ -26,13 +26,18 @@ def precheck(db, business: Business, year: int) -> PrecheckResult:
     missing_images = [e.id for e in expenses if e.status in ("approved", "needs_review") and not e.image_url]
     uncategorized = [e.id for e in expenses if e.status != "rejected" and not e.category]
     missing_pdf = [r.receipt_number for r in receipts if r.status == "issued" and not r.pdf_url]
+    missing_payer_address = [r.receipt_number for r in receipts
+                             if r.status == "issued" and not (r.client_snapshot.address or "").strip()]
     cancelled = [r.receipt_number for r in receipts if r.status == "cancelled"]
     missing_profile = [camel for attr, camel in _PROFILE_FIELDS if not getattr(business, attr, None)]
     ts = aggregation_service.threshold_status(db, business, year)
-    lists = [needing_review, missing_images, uncategorized, missing_pdf, cancelled, missing_profile]
+    lists = [needing_review, missing_images, uncategorized, missing_pdf, missing_payer_address,
+             cancelled, missing_profile]
     return PrecheckResult(year=year, expenses_needing_review=needing_review,
                           expenses_missing_images=missing_images, uncategorized_expenses=uncategorized,
-                          receipts_missing_pdf=missing_pdf, cancelled_receipts=cancelled,
+                          receipts_missing_pdf=missing_pdf,
+                          receipts_missing_payer_address=missing_payer_address,
+                          cancelled_receipts=cancelled,
                           missing_business_fields=missing_profile, total_revenue=ts.total,
                           threshold_warning=ts.warning, issues_count=sum(len(x) for x in lists))
 

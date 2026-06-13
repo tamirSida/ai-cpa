@@ -10,6 +10,7 @@ class PrecheckResult(CamelModel):
     expenses_missing_images: list[str]   # expense ids (approved/needs_review, no imageUrl)
     uncategorized_expenses: list[str]    # expense ids (non-rejected, no category)
     receipts_missing_pdf: list[str]      # receipt numbers (issued, no pdfUrl)
+    receipts_missing_payer_address: list[str] = []  # receipt numbers (issued, no client address)
     cancelled_receipts: list[str]        # receipt numbers
     missing_business_fields: list[str]   # camelCase business field names
     total_revenue: float

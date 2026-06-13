@@ -35,9 +35,11 @@ def test_precheck_flags_every_issue_type(api, db, make_business):
     assert sorted(d["expensesMissingImages"]) == sorted([e1, e2])
     assert d["uncategorizedExpenses"] == [e1]
     assert d["receiptsMissingPdf"] == ["2026-0002"]
+    # both issued receipts have a clientSnapshot without an address
+    assert sorted(d["receiptsMissingPayerAddress"]) == ["2026-0001", "2026-0002"]
     assert d["cancelledReceipts"] == ["2026-0003"]
     assert set(d["missingBusinessFields"]) >= {"address", "phone"}
-    assert d["totalRevenue"] == 5600.0 and d["thresholdWarning"] is False and d["issuesCount"] == 8
+    assert d["totalRevenue"] == 5600.0 and d["thresholdWarning"] is False and d["issuesCount"] == 10
 
 def test_precheck_threshold_warning(api, db, make_business):
     biz = make_business()

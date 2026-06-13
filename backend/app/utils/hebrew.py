@@ -86,6 +86,8 @@ def render_precheck_summary(result) -> str:
         parts.append(f"{len(result.uncategorized_expenses)} הוצאות ללא קטגוריה")
     if result.receipts_missing_pdf:
         parts.append(f"{len(result.receipts_missing_pdf)} קבלות ללא PDF")
+    if result.receipts_missing_payer_address:
+        parts.append(f"{len(result.receipts_missing_payer_address)} קבלות ללא כתובת לקוח")
     if result.missing_business_fields:
         parts.append("פרטי עסק חסרים: " + ", ".join(result.missing_business_fields))
     total = format_ils(result.total_revenue)
