@@ -8,7 +8,7 @@ from app.schemas.ai_commands import (IntentType, ParsedUserCommand, ParserFailur
 from app.schemas.business import Business
 from app.schemas.chat import ActionView, ChatTurnResult, ExecutionResult
 from app.schemas.client import ClientCreate
-from app.schemas.receipt import ReceiptDraftCreate
+from app.schemas.receipt import CheckDetails, ReceiptDraftCreate
 from app.services import aggregation_service as agg
 from app.services import client_service, receipt_service, report_service
 from app.utils.dates import now_il, resolve_time_range, today_il, year_bounds
@@ -172,9 +172,15 @@ def _execute_receipt(db, business: Business, payload: dict, action_ref):
         # resolves, name-only otherwise (Task 2.3) — ReceiptDraftCreate has no snapshot field
         exact = [c for c in client_service.find_clients_by_name(db, business.id, name) if c.name.strip() == name]
         client_id = exact[0].id if len(exact) == 1 else None
+        check_details = None
+        if payload.get("payment_method") == "check":
+            check_details = CheckDetails(
+                number=payload.get("check_number"), bank=payload.get("check_bank"),
+                branch=payload.get("check_branch"), due_date=payload.get("check_due_date"))
         draft = receipt_service.create_draft(db, business, ReceiptDraftCreate(
             client_id=client_id, client_name=name, amount=round_ils(payload["amount"]), currency="ILS",
             payment_method=payload.get("payment_method") or "unknown",
+            check_details=check_details,
             description=payload["description"]))
         # persist the draft id BEFORE issuing, so a crash/throw during issue lets the retry
         # re-issue this same draft instead of creating a new one.
