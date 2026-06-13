@@ -59,6 +59,10 @@ class ReceiptPayload(BaseModel):
     payment_method: Optional[PaymentMethod] = None   # server default: unknown
     payment_received: Optional[bool] = None
     issue_receipt: Optional[bool] = None
+    check_number: Optional[str] = None
+    check_bank: Optional[str] = None
+    check_branch: Optional[str] = None
+    check_due_date: Optional[str] = None
 
 
 class ContactPayload(BaseModel):

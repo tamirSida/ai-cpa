@@ -39,6 +39,10 @@ def compute_missing_fields(intent: IntentType, payload: dict) -> list[str]:
         # payment confirmation; only an explicit boolean True (received) or issue_receipt request does.
         if payload.get("payment_received") is not True and payload.get("issue_receipt") is not True:
             missing.append("payment_received_confirmation")  # doc §10 rule
+        if payload.get("payment_method") == "check":
+            for f in ("check_number", "check_bank", "check_branch", "check_due_date"):
+                if not payload.get(f):
+                    missing.append(f)
     elif intent == IntentType.CREATE_CONTACT:
         if not payload.get("name"): missing.append("name")
     elif intent == IntentType.CREATE_EXPENSE:

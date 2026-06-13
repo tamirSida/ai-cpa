@@ -22,11 +22,20 @@ _FIELD_Q = {
     (IntentType.CREATE_RECEIPT, "amount"): "מה הסכום ששולם ובאיזה אמצעי תשלום?",
     (IntentType.CREATE_RECEIPT, "description"): "עבור מה התשלום?",
     (IntentType.CREATE_RECEIPT, "payment_received_confirmation"): "האם התשלום כבר התקבל?",
+    (IntentType.CREATE_RECEIPT, "check_number"): "מהם פרטי ההמחאה (מספר, בנק, סניף ותאריך פירעון)?",
+    (IntentType.CREATE_RECEIPT, "check_bank"): "מהם פרטי ההמחאה (מספר, בנק, סניף ותאריך פירעון)?",
+    (IntentType.CREATE_RECEIPT, "check_branch"): "מהם פרטי ההמחאה (מספר, בנק, סניף ותאריך פירעון)?",
+    (IntentType.CREATE_RECEIPT, "check_due_date"): "מהם פרטי ההמחאה (מספר, בנק, סניף ותאריך פירעון)?",
     (IntentType.CREATE_CONTACT, "name"): "מה שם איש הקשר?",
     (IntentType.CREATE_EXPENSE, "amount"): "מה סכום ההוצאה?",
 }
 def build_followup_question(intent: IntentType, missing_fields: list[str]) -> str:
-    qs = [_FIELD_Q[(intent, f)] for f in missing_fields if (intent, f) in _FIELD_Q]
+    seen: set[str] = set()
+    qs = []
+    for f in missing_fields:
+        q = _FIELD_Q.get((intent, f))
+        if q and q not in seen:
+            seen.add(q); qs.append(q)
     return " ".join(qs) or "חסרים לי כמה פרטים, אפשר לפרט?"
 
 def build_confirmation_message(intent: IntentType, payload: dict) -> str:
