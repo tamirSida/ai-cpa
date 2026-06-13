@@ -7387,6 +7387,8 @@ def build_clients_csv(clients) -> bytes:
 
 ### Task 6.4: Summary + Missing-Items PDF Templates
 
+> **As-built note:** two necessary fixes vs the verbatim templates — (1) report PDFs carry the `@font-face` + `"Noto Sans Hebrew LTR"` alias on `span[dir="ltr"]` so pypdf extracts LTR runs (golden test depends on it, same trick as receipt.html); (2) `missing_items.html` uses `s['items']` not `s.items` (Jinja resolves `.items` to the dict's bound method, not the key). Both PDFs render Hebrew RTL correctly (verified visually).
+
 **Files:** Create: `backend/app/templates/report_summary.html`, `backend/app/templates/missing_items.html` · Test: `backend/tests/test_report_pdfs.py`
 
 - [ ] **Step 1: Write the failing golden tests**
