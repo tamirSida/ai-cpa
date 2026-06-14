@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     receipt_signing_p12_password: str = ""
     cors_origins: list[str] = ["http://localhost:3000"]
     annual_limit_ils: int = 122833
+    bootstrap_admin_emails: list[str] = []
+    default_ai_budget_usd: float = 3.0
     env: str = "dev"
 
 
