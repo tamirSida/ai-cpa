@@ -3,6 +3,8 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 
 from app.core.errors import api_error
 from app.schemas.invite import Invite
+from app.schemas.user import AdminUserDetail, BusinessSummary, User
+from app.services import business_service, usage_service
 from app.utils.dates import now_il
 
 
@@ -60,3 +62,88 @@ def revoke_invite(db: firestore.Client, email: str) -> dict:
         api_error(409, "invite_not_revocable", "לא ניתן לבטל הזמנה שכבר נוצלה")
     ref.update({"status": "revoked", "updatedAt": now_il()})
     return {"status": "revoked"}
+
+
+# --- user management --------------------------------------------------------
+
+def _get_user_or_404(db: firestore.Client, uid: str) -> dict:
+    snap = db.collection("users").document(uid).get()
+    if not snap.exists:
+        api_error(404, "user_not_found", "המשתמש לא נמצא")
+    return snap.to_dict()
+
+
+def list_users(
+    db: firestore.Client, status: str | None, q: str | None, limit: int = 50
+) -> list[User]:
+    limit = min(max(limit, 1), 200)  # cap at 200
+    col = db.collection("users")
+    query = col.where(filter=FieldFilter("status", "==", status)) if status else col
+    users = [User.model_validate(snap.to_dict()) for snap in query.stream()]
+    if q:
+        needle = q.strip().lower()
+        users = [u for u in users if needle in u.email.lower()]
+    return users[:limit]
+
+
+def get_user_detail(db: firestore.Client, uid: str) -> AdminUserDetail:
+    user = User.model_validate(_get_user_or_404(db, uid))
+    usage = usage_service.usage_summary(db, user)
+    biz = business_service.get_business_by_owner(db, uid)
+    summary = (
+        BusinessSummary(
+            id=biz.id,
+            business_name=biz.business_name,
+            business_id_number=biz.business_id_number,
+        )
+        if biz is not None
+        else None
+    )
+    return AdminUserDetail(**user.model_dump(), usage=usage, business=summary)
+
+
+def approve_user(
+    db: firestore.Client, admin_uid: str, uid: str, ai_budget_usd: float | None
+) -> User:
+    data = _get_user_or_404(db, uid)
+    if data.get("status") != "pending":
+        api_error(409, "invalid_user_status", "אפשר לאשר רק משתמש בהמתנה")
+    now = now_il()
+    ref = db.collection("users").document(uid)
+    # .update() writes aiBudgetUsd explicitly, including null (Unlimited) — not dropped.
+    ref.update(
+        {
+            "status": "active",
+            "aiBudgetUsd": ai_budget_usd,
+            "approvedByUid": admin_uid,
+            "approvedAt": now,
+            "updatedAt": now,
+        }
+    )
+    return User.model_validate(ref.get().to_dict())
+
+
+def set_user_status(db: firestore.Client, admin_uid: str, uid: str, target: str) -> User:
+    if target == "disabled" and uid == admin_uid:
+        api_error(409, "cannot_disable_self", "אי אפשר להשבית את עצמך")
+    _get_user_or_404(db, uid)
+    ref = db.collection("users").document(uid)
+    ref.update({"status": target, "updatedAt": now_il()})
+    return User.model_validate(ref.get().to_dict())
+
+
+def set_user_role(db: firestore.Client, admin_uid: str, uid: str, role: str) -> User:
+    if uid == admin_uid:
+        api_error(409, "cannot_change_own_role", "אי אפשר לשנות את התפקיד של עצמך")
+    _get_user_or_404(db, uid)
+    ref = db.collection("users").document(uid)
+    ref.update({"role": role, "updatedAt": now_il()})
+    return User.model_validate(ref.get().to_dict())
+
+
+def set_user_budget(db: firestore.Client, uid: str, ai_budget_usd: float | None) -> User:
+    _get_user_or_404(db, uid)
+    ref = db.collection("users").document(uid)
+    # null is allowed (Unlimited) and written explicitly via .update().
+    ref.update({"aiBudgetUsd": ai_budget_usd, "updatedAt": now_il()})
+    return User.model_validate(ref.get().to_dict())

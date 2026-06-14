@@ -37,3 +37,26 @@ class MeResponse(CamelModel):
     ai_budget_usd: Optional[float]
     usage: UsageSummary
     has_business: bool
+
+
+class BusinessSummary(CamelModel):
+    id: str
+    business_name: str
+    business_id_number: str
+
+
+class AdminUserDetail(User):  # inherits all User fields
+    usage: UsageSummary
+    business: Optional[BusinessSummary] = None
+
+
+class ApproveRequest(CamelModel):
+    ai_budget_usd: Optional[float] = 3.0  # omitted -> $3 default; explicit null -> Unlimited
+
+
+class RoleRequest(CamelModel):
+    role: Role
+
+
+class BudgetRequest(CamelModel):
+    ai_budget_usd: Optional[float] = None  # null -> Unlimited
