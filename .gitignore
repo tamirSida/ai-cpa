@@ -16,6 +16,9 @@ out/
 !.env.local.example
 backend/secrets/
 
+# Internal docs (plans, specs, reference) — not used by the build/CI/deploy
+docs/
+
 # OS / editor
 .DS_Store
 .idea/
