@@ -1,18 +1,15 @@
 name: Deploy API to VPS
 
-# Mirrors the ai_booking worker deploy: push to main → SSH in → the VPS pulls the new
-# commit and rebuilds the container. Runs alongside CI (ci.yml) and Netlify's own build.
-# Path-filtered so UI-only commits don't needlessly rebuild the API on the box.
+# Runs ONLY after the "CI" workflow succeeds on main — a red build never deploys. It then
+# checks whether the backend actually changed in that commit before touching the VPS, so a
+# UI-only commit skips the rebuild (the mirror of Netlify's frontend-only build filter).
+# A manual run (workflow_dispatch) force-deploys, bypassing both gates.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "backend/**"
-      - "docker-compose.prod.yml"
-      - ".github/workflows/deploy.yml"
-  workflow_dispatch: {}            # manual trigger from the Actions tab
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+  workflow_dispatch: {}
 
-# Don't let two pushes in quick succession step on each other mid-deploy.
 concurrency:
   group: api-deploy
   cancel-in-progress: false
@@ -20,8 +17,30 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Gate 1: CI must have passed on main (manual dispatch bypasses this).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          fetch-depth: 2
+      # Gate 2: only deploy when the backend (or its deploy config) changed in this commit.
+      - name: Did the backend change?
+        id: gate
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet HEAD^ HEAD -- backend docker-compose.prod.yml .github/workflows/deploy.yml; then
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "No backend changes in this commit — skipping VPS deploy."
+          else
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Deploy via SSH
+        if: steps.gate.outputs.deploy == 'true'
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -38,5 +57,6 @@ jobs:
             sleep 5
             docker compose -f docker-compose.prod.yml ps api
             curl -fsS http://localhost:8001/healthz
+            curl -fsS http://localhost:8001/readyz        # confirms the new container reaches Firestore
             echo
             echo "API deploy succeeded."

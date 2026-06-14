@@ -86,24 +86,35 @@ The runner→VPS SSH key (NOT the deploy key from step 2 — different key):
 - `VPS_SSH_KEY` = the **private** key whose public half is in the VPS `~/.ssh/authorized_keys` (the same key `ai_booking`'s deploy uses).
 
 ### 6. Netlify (frontend)
-- New site from `tamirSida/ai-cpa`, **base directory `frontend`** (Netlify auto-detects Next 16).
+- New site from `tamirSida/ai-cpa`, **base directory `frontend`**. `frontend/netlify.toml` (committed)
+  already pins Node 22, the build command, and an `ignore` rule that **skips the build on backend-only
+  commits** — you only set the base directory + env vars in the UI.
 - Env vars: the four `NEXT_PUBLIC_FIREBASE_*` (the `recipts-ai` web config) + `NEXT_PUBLIC_API_BASE_URL=https://tax-api.portfolio-plus.com/api`.
 - Deploy → note the site URL → put it in `CORS_ORIGINS` in the VPS `.env` (step 3) and in **Firebase Console → Authentication → Settings → Authorized domains**.
 
 ---
 
 ## First deploy + verify
+Deploy is **gated on CI**: `deploy.yml` runs automatically only after the **"CI" workflow succeeds on
+`main`**, and only when the backend changed in that commit. For the **first** deploy, trigger it
+manually (the `workflow_run` trigger won't fire until the deploy workflow already exists on `main`):
+> Actions tab → **"Deploy API to VPS"** → **Run workflow**.
+
+Then verify:
 ```bash
-# trigger: push to main, OR run the "Deploy API to VPS" workflow manually (Actions tab)
-curl -i https://tax-api.portfolio-plus.com/healthz     # → 200 over valid TLS
+curl -i https://tax-api.portfolio-plus.com/healthz     # → 200 over valid TLS (liveness)
+curl -i https://tax-api.portfolio-plus.com/readyz      # → 200 (the container can reach Firestore)
 ```
-Then open the Netlify site → Google sign-in → onboarding → issue a receipt. Two kill-switch checks:
+Then open the Netlify site → Google sign-in → onboarding → issue a receipt. Two checks:
 - A bank-transfer receipt PDF shows «מסמך ממוחשב חתום דיגיטלית»; a cash one shows the hand-sign note.
 - `docker compose -f docker-compose.prod.yml ps api` on the VPS shows `healthy`.
 
 ## Ongoing
-Push to `main` → CI runs + the API auto-redeploys (when `backend/**` or the compose/workflow changes); Netlify rebuilds the frontend. First image build on the VPS is slow (WeasyPrint apt+pip); later builds use cached layers.
+Push to `main` → **CI** runs (tests + FE build). If green, the **API redeploys only when `backend/**`
+(or the compose/deploy workflow) changed**, and **Netlify rebuilds only when `frontend/**` changed** —
+each side ignores the other's commits. A red CI never deploys. First VPS image build is slow
+(WeasyPrint apt+pip); later builds use cached layers.
 
-## Notes / future hardening
-- Deploy currently runs in parallel with CI (like `ai_booking`). To gate deploy on green tests, switch `deploy.yml` to a `workflow_run` trigger after CI succeeds.
-- Two distinct keys: **VPS_SSH_KEY** (runner → VPS) and the **deploy key** (VPS → GitHub). Don't mix them up.
+## Notes
+- Two distinct keys: **VPS_SSH_KEY** (runner → VPS) and the read-only **deploy key** (VPS → GitHub). Don't mix them up.
+- The backend-change gate compares the latest commit (`HEAD^..HEAD`); single-commit pushes (the usual case) are exact. Use the manual **Run workflow** to force a deploy regardless.

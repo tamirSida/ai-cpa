@@ -1,0 +1,23 @@
+# Netlify build config for the Next.js frontend.
+# Set the site's "Base directory" to `frontend` in the Netlify UI — everything here is
+# relative to that.
+[build]
+  command = "npm run build"
+  publish = ".next"
+  # Build ONLY when something under frontend/ (the base dir) changed in the push — a
+  # backend-only commit skips the Netlify build entirely. Mirror of the VPS deploy's
+  # backend path-filter. (On the first build CACHED_COMMIT_REF is empty → diff errors →
+  # non-zero → build proceeds, which is the safe default.)
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- ."
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[build.environment]
+  NODE_VERSION = "22"            # Next 16 / this project needs Node 22 (Node 20 too old, 26 breaks Turbopack)
+  NEXT_TELEMETRY_DISABLED = "1"
+  # The Firebase web config (NEXT_PUBLIC_*) is public by design — it's inlined into the
+  # browser bundle; real security is Firebase Auth + Firestore rules. Stop the secrets
+  # scanner from false-positiving on the AIza... API key.
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_FIREBASE_API_KEY,NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,NEXT_PUBLIC_FIREBASE_PROJECT_ID,NEXT_PUBLIC_FIREBASE_APP_ID"
+  SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
