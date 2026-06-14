@@ -13,3 +13,13 @@ export const MONTH_NAMES_HE = [
   "ינו׳", "פבר׳", "מרץ", "אפר׳", "מאי", "יוני",
   "יולי", "אוג׳", "ספט׳", "אוק׳", "נוב׳", "דצמ׳",
 ];
+
+// AI budget/usage is denominated in USD; output is LTR ($3.00) — callers wrap in dir="ltr".
+export function formatUsd(n: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
+}

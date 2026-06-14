@@ -96,3 +96,54 @@ export interface PrecheckResult {
   uncategorizedExpenses: string[]; receiptsMissingPdf: string[]; cancelledReceipts: string[];
   missingBusinessFields: string[]; receiptsMissingPayerAddress: string[]; totalRevenue: number; thresholdWarning: boolean; issuesCount: number;
 }
+
+export type Role = "admin" | "user";
+export type AccountStatus = "pending" | "active" | "disabled";
+export type InviteStatus = "pending" | "accepted" | "revoked";
+
+export interface AiUsage {
+  month: string;            // "YYYY-MM"
+  aiCostUsd: number;
+  aiBudgetUsd: number | null;
+  overBudget: boolean;
+}
+
+export interface UserAccount {        // shape of GET /users/me
+  uid: string;
+  email: string;
+  displayName?: string | null;
+  role: Role;
+  status: AccountStatus;
+  aiBudgetUsd: number | null;         // null == Unlimited
+  usage: AiUsage;
+  hasBusiness: boolean;
+}
+
+export interface AdminUser {          // GET /admin/users[] rows + action responses
+  uid: string;
+  email: string;
+  displayName?: string | null;
+  role: Role;
+  status: AccountStatus;
+  aiBudgetUsd: number | null;
+  invitedByUid?: string | null;
+  approvedByUid?: string | null;
+  approvedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminUserDetail extends AdminUser {
+  usage: AiUsage;
+  business: { id: string; businessName: string; businessIdNumber: string } | null;
+}
+
+export interface Invite {
+  id: string;               // == email
+  email: string;
+  status: InviteStatus;
+  invitedByUid: string;
+  acceptedByUid?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}

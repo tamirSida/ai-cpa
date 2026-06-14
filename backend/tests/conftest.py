@@ -51,18 +51,99 @@ def clear_db():
     yield
 
 
+def _seed_user(db, **overrides) -> dict:
+    """Write a users/{uid} doc and return it. Defaults to an active 'user'."""
+    now = datetime.now(timezone.utc)
+    doc = {
+        "uid": "user-2",
+        "email": "user2@example.com",
+        "displayName": None,
+        "role": "user",
+        "status": "active",
+        "aiBudgetUsd": None,
+        "createdAt": now,
+        "updatedAt": now,
+    }
+    doc.update(overrides)
+    db.collection("users").document(doc["uid"]).set(doc)
+    return doc
+
+
 @pytest.fixture()
-def api(db):
+def api(db, clear_db):  # depend on clear_db so seeding happens AFTER the DB wipe
     from app.core import auth, firebase
     from app.main import app
 
+    # Business routes now require an ACTIVE user; seed users/test-uid so the
+    # default client is an active owner.
+    _seed_user(
+        db,
+        uid="test-uid",
+        email="owner@example.com",
+        displayName="Owner",
+        role="user",
+        status="active",
+        aiBudgetUsd=None,
+    )
+
     saved = dict(app.dependency_overrides)
-    app.dependency_overrides[auth.get_current_uid] = lambda: "test-uid"
+    app.dependency_overrides[auth.get_current_uid] = lambda: "test-uid"  # kept; harmless
+    app.dependency_overrides[auth.get_token_identity] = lambda: auth.TokenIdentity(
+        uid="test-uid", email="owner@example.com", name="Owner"
+    )
     app.dependency_overrides[firebase.get_db] = lambda: db
     with TestClient(app) as client:
         yield client
     app.dependency_overrides.clear()
     app.dependency_overrides.update(saved)
+
+
+@pytest.fixture()
+def admin_api(db, clear_db):  # depend on clear_db so seeding happens AFTER the DB wipe
+    from app.core import auth, firebase
+    from app.main import app
+
+    # Admin-gated routes require an ACTIVE admin; seed users/admin-uid accordingly.
+    _seed_user(
+        db,
+        uid="admin-uid",
+        email="admin@example.com",
+        displayName="Admin",
+        role="admin",
+        status="active",
+        aiBudgetUsd=None,
+    )
+
+    saved = dict(app.dependency_overrides)
+    app.dependency_overrides[auth.get_current_uid] = lambda: "admin-uid"  # kept; harmless
+    app.dependency_overrides[auth.get_token_identity] = lambda: auth.TokenIdentity(
+        uid="admin-uid", email="admin@example.com", name="Admin"
+    )
+    app.dependency_overrides[firebase.get_db] = lambda: db
+    with TestClient(app) as client:
+        yield client
+    app.dependency_overrides.clear()
+    app.dependency_overrides.update(saved)
+
+
+@pytest.fixture()
+def make_user(db):
+    """Write a users/{uid} doc (default uid 'user-2', active) and return the dict."""
+    def _make(**overrides) -> dict:
+        return _seed_user(db, **overrides)
+
+    return _make
+
+
+@pytest.fixture()
+def make_admin(db):
+    """Write an admin users/{uid} doc (default uid 'admin-1', active) and return it."""
+    def _make(**overrides) -> dict:
+        defaults = {"uid": "admin-1", "email": "admin@example.com", "role": "admin", "status": "active"}
+        defaults.update(overrides)
+        return _seed_user(db, **defaults)
+
+    return _make
 
 
 @pytest.fixture()
@@ -93,6 +174,17 @@ def make_business(db):
         return doc
 
     return _make
+
+
+@pytest.fixture
+def freeze_month(monkeypatch):
+    """Pin app.services.usage_service.now_il to a fixed Israel-local datetime so
+    _month_key() is deterministically '2026-06' regardless of the wall clock."""
+    from app.utils.dates import IL_TZ
+
+    fixed = datetime(2026, 6, 15, 12, 0, tzinfo=IL_TZ)
+    monkeypatch.setattr("app.services.usage_service.now_il", lambda: fixed)
+    return fixed
 
 
 @pytest.fixture

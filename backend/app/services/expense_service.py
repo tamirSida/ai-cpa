@@ -5,6 +5,8 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 from app.core.errors import api_error
 from app.schemas.ai_commands import ExpenseExtraction
 from app.schemas.expense import Expense, ExpenseCreate, ExpensePatch, VALID_CATEGORIES
+from app.schemas.user import User
+from app.services import usage_service
 from app.services.ledger_service import record_event
 from app.services.openai_service import ParserFailure
 from app.utils.dates import now_il, parse_iso_date
@@ -130,7 +132,7 @@ def build_jpg_delivery_url(public_id: str) -> str:
     url, _ = cloudinary.utils.cloudinary_url(public_id, resource_type="image", fetch_format="jpg", secure=True)
     return url
 
-def run_extraction(db, business_id: str, expense_id: str, parser) -> Expense:
+def run_extraction(db, business_id: str, expense_id: str, parser, user: User) -> Expense:
     # Not transactional: two concurrent /extract calls would both hit the LLM (double cost) and
     # last-writer-wins on the merge. Acceptable for single-user MVP (the review sheet calls this
     # once per expense); add an `extracting` soft-lock if multi-session extraction becomes real.
@@ -139,9 +141,11 @@ def run_extraction(db, business_id: str, expense_id: str, parser) -> Expense:
         api_error(409, "invalid_expense_status", "אפשר להריץ זיהוי רק על הוצאה בסטטוס לבדיקה")
     if not data.get("cloudinaryPublicId"):
         api_error(400, "no_image", "אין תמונה מצורפת להוצאה הזו")
-    result = parser.extract_expense(build_jpg_delivery_url(data["cloudinaryPublicId"]))
+    usage_service.assert_budget(db, user)                                  # HARD BLOCK before the vision call
+    result, usage, model = parser.extract_expense(build_jpg_delivery_url(data["cloudinaryPublicId"]))
     if isinstance(result, ParserFailure):
         api_error(502, "extraction_failed", "לא הצלחתי לחלץ נתונים מהתמונה, אפשר להזין ידנית")
+    usage_service.record_cost(db, user.uid, model, usage)                  # charge only successful extractions
     changes: dict = {}
     if result.supplier_name: changes["supplierName"] = result.supplier_name
     if result.amount is not None: changes["amount"] = round_ils(result.amount)

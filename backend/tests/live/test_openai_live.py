@@ -9,7 +9,7 @@ import app.schemas.ai_commands as ac
 
 
 def test_parse_hebrew_receipt_command(parser):
-    res = parser.parse_user_command(
+    res, usage, model = parser.parse_user_command(
         {
             "business": {"current_year": 2026},
             "known_clients": ["נועה"],
@@ -20,6 +20,7 @@ def test_parse_hebrew_receipt_command(parser):
         "קיבלתי 2800 מנועה על עיצוב לוגו בביט",
     )
     assert isinstance(res, ac.ParsedUserCommand), getattr(res, "detail", res)
+    assert usage is not None and isinstance(model, str)
     assert res.intent == ac.IntentType.CREATE_RECEIPT
     assert res.receipt is not None
     assert res.receipt.amount == 2800
@@ -33,7 +34,8 @@ def test_extract_expense_from_real_receipt_image(parser):
     url = os.getenv("LIVE_RECEIPT_IMAGE_URL")
     if not url:
         pytest.skip("set LIVE_RECEIPT_IMAGE_URL to a real receipt image URL to run the vision smoke")
-    res = parser.extract_expense(url)
+    res, usage, model = parser.extract_expense(url)
     assert isinstance(res, ac.ExpenseExtraction), getattr(res, "detail", res)
+    assert usage is not None and isinstance(model, str)
     assert res.amount is not None and res.amount > 0
     assert res.currency in (None, "ILS")

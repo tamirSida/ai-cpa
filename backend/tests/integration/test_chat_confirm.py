@@ -6,7 +6,7 @@ from app.schemas.business import Business
 from app.services import chat_service
 from app.services.cloudinary_service import UploadResult
 from tests.stubs import StubCommandParser
-from tests.integration.test_chat_flow import FULL_RECEIPT, _actions
+from tests.integration.test_chat_flow import FULL_RECEIPT, USER, _actions
 
 @pytest.fixture(autouse=True)
 def fake_pdf_and_cloudinary(monkeypatch):
@@ -18,7 +18,7 @@ def fake_pdf_and_cloudinary(monkeypatch):
 def pending_receipt(db, make_business):
     biz = Business.model_validate(make_business())
     stub = StubCommandParser().queue_command(FULL_RECEIPT)
-    res = chat_service.handle_message(db, stub, biz, "main", "קיבלתי 2800 מנועה על עיצוב לוגו בביט")
+    res = chat_service.handle_message(db, stub, biz, USER, "main", "קיבלתי 2800 מנועה על עיצוב לוגו בביט")
     return biz, res.action.id
 
 def test_confirm_executes_receipt(db, pending_receipt):
@@ -30,12 +30,12 @@ def test_confirm_executes_receipt(db, pending_receipt):
 def test_fast_path_confirm_word_skips_llm(db, pending_receipt):
     biz, action_id = pending_receipt
     stub = StubCommandParser()                      # empty queue: any LLM call would assert
-    res = chat_service.handle_message(db, stub, biz, "main", "אישור")
+    res = chat_service.handle_message(db, stub, biz, USER, "main", "אישור")
     assert res.result and res.result["receiptId"] and stub.calls == []
 
 def test_fast_path_cancel_word(db, pending_receipt):
     biz, action_id = pending_receipt
-    res = chat_service.handle_message(db, StubCommandParser(), biz, "main", "בטל")
+    res = chat_service.handle_message(db, StubCommandParser(), biz, USER, "main", "בטל")
     assert res.assistant_text == "הפעולה בוטלה."
     assert _actions(db, biz.id)[action_id]["cancellationReason"] == "user_cancelled"
 
