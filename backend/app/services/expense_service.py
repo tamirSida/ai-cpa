@@ -139,7 +139,7 @@ def run_extraction(db, business_id: str, expense_id: str, parser) -> Expense:
         api_error(409, "invalid_expense_status", "אפשר להריץ זיהוי רק על הוצאה בסטטוס לבדיקה")
     if not data.get("cloudinaryPublicId"):
         api_error(400, "no_image", "אין תמונה מצורפת להוצאה הזו")
-    result = parser.extract_expense(build_jpg_delivery_url(data["cloudinaryPublicId"]))
+    result, _usage, _model = parser.extract_expense(build_jpg_delivery_url(data["cloudinaryPublicId"]))
     if isinstance(result, ParserFailure):
         api_error(502, "extraction_failed", "לא הצלחתי לחלץ נתונים מהתמונה, אפשר להזין ידנית")
     changes: dict = {}

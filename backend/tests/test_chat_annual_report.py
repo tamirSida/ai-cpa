@@ -6,8 +6,9 @@ from tests.test_report_precheck import seed_expense
 
 class _AnnualStub:
     def parse_user_command(self, context, message):
-        return ParsedUserCommand(intent=IntentType.GENERATE_ANNUAL_REPORT,
-                                 confidence=0.95, language="he", missing_fields=[])
+        return (ParsedUserCommand(intent=IntentType.GENERATE_ANNUAL_REPORT,
+                                  confidence=0.95, language="he", missing_fields=[]),
+                None, "gpt-4.1-mini")
     def extract_expense(self, image_url):
         raise NotImplementedError
 

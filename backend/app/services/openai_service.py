@@ -11,8 +11,8 @@ from app.schemas.ai_commands import ExpenseExtraction, ParsedUserCommand, Parser
 _PROMPTS = Path(__file__).resolve().parent.parent / "prompts"
 
 class CommandParser(Protocol):
-    def parse_user_command(self, context: dict, message: str) -> Union[ParsedUserCommand, ParserFailure]: ...
-    def extract_expense(self, image_url: str) -> Union[ExpenseExtraction, ParserFailure]: ...
+    def parse_user_command(self, context: dict, message: str) -> tuple[Union[ParsedUserCommand, ParserFailure], object | None, str]: ...
+    def extract_expense(self, image_url: str) -> tuple[Union[ExpenseExtraction, ParserFailure], object | None, str]: ...
 
 def _normalize(cmd: ParsedUserCommand) -> ParsedUserCommand:
     # server-side scalar defaults (strict schema forced Optional on the wire)
@@ -37,35 +37,39 @@ class OpenAICommandParser:
         return self._client
 
     def _call(self, model: str, input_items: list, text_format):
+        # Returns (result, usage, model): usage is response.usage on success, None on ParserFailure.
         try:
             response = self.client.responses.parse(model=model, input=input_items, text_format=text_format)
-        except openai.LengthFinishReasonError as e: return ParserFailure(reason="length", detail=str(e))
-        except openai.APITimeoutError as e: return ParserFailure(reason="timeout", detail=str(e))
-        except openai.RateLimitError as e: return ParserFailure(reason="rate_limit", detail=str(e))
-        except openai.APIStatusError as e: return ParserFailure(reason="api_error", detail=f"status={e.status_code}")
-        except openai.APIConnectionError as e: return ParserFailure(reason="api_error", detail=str(e))  # non-timeout network failure (timeouts caught above)
-        except ValidationError as e: return ParserFailure(reason="validation_error", detail=str(e)[:500])
+        except openai.LengthFinishReasonError as e: return ParserFailure(reason="length", detail=str(e)), None, model
+        except openai.APITimeoutError as e: return ParserFailure(reason="timeout", detail=str(e)), None, model
+        except openai.RateLimitError as e: return ParserFailure(reason="rate_limit", detail=str(e)), None, model
+        except openai.APIStatusError as e: return ParserFailure(reason="api_error", detail=f"status={e.status_code}"), None, model
+        except openai.APIConnectionError as e: return ParserFailure(reason="api_error", detail=str(e)), None, model  # non-timeout network failure (timeouts caught above)
+        except ValidationError as e: return ParserFailure(reason="validation_error", detail=str(e)[:500]), None, model
         if response.output_parsed is None:
-            return ParserFailure(reason="refusal", detail="model refused or returned no parsed output")
-        return response.output_parsed
+            return ParserFailure(reason="refusal", detail="model refused or returned no parsed output"), None, model
+        return response.output_parsed, response.usage, model
 
     def parse_user_command(self, context: dict, message: str):
         s = get_settings()
         user_text = json.dumps({"context": context, "message": message}, ensure_ascii=False)
-        result = self._call(s.openai_command_model,
+        result, usage, model = self._call(s.openai_command_model,
             [{"role": "system", "content": self._command_prompt},
              {"role": "user", "content": [{"type": "input_text", "text": user_text}]}],
             ParsedUserCommand)
-        return _normalize(result) if isinstance(result, ParsedUserCommand) else result
+        if isinstance(result, ParsedUserCommand):
+            result = _normalize(result)
+        return result, usage, model
 
     def extract_expense(self, image_url: str):
         s = get_settings()
-        return self._call(s.openai_vision_model,
+        result, usage, model = self._call(s.openai_vision_model,
             [{"role": "system", "content": self._expense_prompt},
              {"role": "user", "content": [
                  {"type": "input_image", "image_url": image_url},  # plain string per Responses API
                  {"type": "input_text", "text": "Extract the expense from this image."}]}],
             ExpenseExtraction)
+        return result, usage, model
 
 @lru_cache
 def get_command_parser() -> CommandParser:

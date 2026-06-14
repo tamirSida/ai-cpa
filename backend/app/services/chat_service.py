@@ -255,7 +255,7 @@ def handle_message(db, parser, business: Business, thread_id: str, text: str) ->
             reply = "הפעולה בוטלה."
             save_message(db, business.id, thread_id, "assistant", reply, action_id=active[0])
             return ChatTurnResult(assistant_text=reply, action=None)
-    cmd = parser.parse_user_command(_build_context(db, business, thread_id, text, active), text)
+    cmd, _usage, _model = parser.parse_user_command(_build_context(db, business, thread_id, text, active), text)
     if isinstance(cmd, ParserFailure) or cmd.intent == IntentType.UNKNOWN:
         reply = FALLBACK + (("\n" + _current_question(active[1])) if active else "")
         # store what the parser returned (failure reason or UNKNOWN) for auditability
