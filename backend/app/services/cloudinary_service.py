@@ -1,6 +1,7 @@
 import io
 import os
 import cloudinary
+import cloudinary.exceptions
 import cloudinary.uploader
 import httpx
 from pydantic import BaseModel
@@ -23,15 +24,25 @@ def _ensure_config() -> None:
         os.environ["CLOUDINARY_URL"] = url
         cloudinary.reset_config()
 
-def upload_pdf(data: bytes, public_id: str) -> UploadResult:
-    _ensure_config()  # raw public_ids MUST keep the .pdf extension for correct delivery URLs
-    res = cloudinary.uploader.upload(io.BytesIO(data), resource_type="raw", public_id=public_id, overwrite=False)
+def _upload(data: bytes, **opts) -> UploadResult:
+    _ensure_config()
+    try:
+        res = cloudinary.uploader.upload(io.BytesIO(data), **opts)
+    except cloudinary.exceptions.RateLimited:
+        # transient free-tier throttle ("Slow Down, Out of Processing Capacity") — retryable
+        api_error(503, "cloudinary_busy", "שירות הקבצים עמוס כרגע, נסו שוב בעוד רגע")
+    except cloudinary.exceptions.Error:
+        # any other Cloudinary failure -> clean upstream error, not a 500 stack trace
+        api_error(502, "cloudinary_upload_failed", "העלאת הקובץ נכשלה, נסו שוב")
     return UploadResult(secure_url=res["secure_url"], public_id=res["public_id"])
 
+def upload_pdf(data: bytes, public_id: str) -> UploadResult:
+    # raw public_ids MUST keep the .pdf extension for correct delivery URLs
+    return _upload(data, resource_type="raw", public_id=public_id, overwrite=False)
+
 def upload_image(data: bytes, folder: str) -> UploadResult:
-    _ensure_config()  # HEIC lands fine as image; delivery uses f_jpg (Phase 4)
-    res = cloudinary.uploader.upload(io.BytesIO(data), resource_type="image", folder=folder)
-    return UploadResult(secure_url=res["secure_url"], public_id=res["public_id"])
+    # HEIC lands fine as image; delivery uses f_jpg (Phase 4)
+    return _upload(data, resource_type="image", folder=folder)
 
 def fetch_asset(url: str, client: httpx.Client | None = None) -> bytes:
     # Caller may pass a shared client (with its own timeout); otherwise use a bounded one-shot.
