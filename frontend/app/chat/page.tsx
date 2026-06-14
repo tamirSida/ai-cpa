@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import ChatInput from "@/components/ChatInput";
 import ChatMessageList from "@/components/ChatMessageList";
 import { api, ApiError } from "@/lib/apiClient";
+import { aiErrorMessage } from "@/lib/labels";
 import { useAuth } from "@/lib/auth";
 import { useIosKeyboardFix } from "@/lib/useIosKeyboardFix";
 import type {
@@ -42,7 +43,7 @@ export default function ChatPage() {
 
   const pushError = useCallback(
     (e: unknown) => {
-      pushAssistant(e instanceof ApiError ? e.message : "אירעה שגיאה, נסו שוב.");
+      pushAssistant(aiErrorMessage(e) ?? (e instanceof ApiError ? e.message : "אירעה שגיאה, נסו שוב."));
     },
     [pushAssistant],
   );

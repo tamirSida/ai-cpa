@@ -15,6 +15,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAccount } from "@/lib/account";
 import { auth } from "@/lib/firebase";
+import { formatUsd } from "@/lib/format";
+import { UNLIMITED_LABEL } from "@/lib/labels";
 
 const LINKS = [
   { href: "/clients", label: "לקוחות", Icon: Users },
@@ -44,6 +46,17 @@ export default function MorePage() {
     <div className="px-4 pt-6">
       <h1 className="text-2xl font-semibold">עוד</h1>
       <div className="mt-4 flex flex-col gap-3">
+        {account && (
+          <div className="rounded-2xl border border-border bg-white p-4">
+            <p className="text-sm text-foreground/60">מכסת AI החודש</p>
+            <p className="mt-1 font-medium">
+              <span dir="ltr">
+                {formatUsd(account.usage.aiCostUsd)} /{" "}
+                {account.aiBudgetUsd === null ? UNLIMITED_LABEL : formatUsd(account.aiBudgetUsd)}
+              </span>
+            </p>
+          </div>
+        )}
         {account?.role === "admin" && (
           <Link
             href="/admin"

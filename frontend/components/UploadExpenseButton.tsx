@@ -3,6 +3,7 @@
 import { useRef, useState, type ChangeEvent } from "react";
 import { Camera, ImageUp, Loader2 } from "lucide-react";
 import { api } from "@/lib/apiClient";
+import { aiErrorMessage } from "@/lib/labels";
 import type { Expense } from "@/lib/types";
 
 export default function UploadExpenseButton({ businessId, onUploaded }:
@@ -21,7 +22,13 @@ export default function UploadExpenseButton({ businessId, onUploaded }:
       const uploaded = await api<Expense>(`/businesses/${businessId}/expenses/upload`, { method: "POST", body: form });
       let result = uploaded;
       try { result = await api<Expense>(`/businesses/${businessId}/expenses/${uploaded.id}/extract`, { method: "POST" }); }
-      catch { /* 502 extraction_failed: keep raw upload, user fills the fields in the review sheet */ }
+      catch (e) {
+        // The upload itself succeeded; only auto-extraction failed. Surface the budget case so the
+        // user knows WHY the fields weren't filled; otherwise keep the silent fallback (502
+        // extraction_failed) and let them fill the fields manually in the review sheet.
+        const budgetMsg = aiErrorMessage(e);
+        if (budgetMsg) setError(`${budgetMsg} — אפשר למלא את הפרטים ידנית.`);
+      }
       onUploaded(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "ההעלאה נכשלה, נסו שוב");
