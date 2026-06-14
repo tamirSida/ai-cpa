@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans_Hebrew } from "next/font/google";
 import AppShell from "@/components/AppShell";
 import { AuthProvider } from "@/lib/auth";
+import { AccountProvider } from "@/lib/account";
 import { BusinessProvider } from "@/lib/business";
 import "./globals.css";
 
@@ -29,9 +30,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="he" dir="rtl" className={plexHebrew.variable}>
       <body>
         <AuthProvider>
-          <BusinessProvider>
-            <AppShell>{children}</AppShell>
-          </BusinessProvider>
+          <AccountProvider>
+            <BusinessProvider>
+              <AppShell>{children}</AppShell>
+            </BusinessProvider>
+          </AccountProvider>
         </AuthProvider>
       </body>
     </html>

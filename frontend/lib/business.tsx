@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
+import { useAccount } from "@/lib/account";
 import { api, ApiError } from "@/lib/apiClient";
 import type { Business } from "@/lib/types";
 
@@ -10,6 +11,7 @@ const BusinessContext = createContext<BusinessState>({ business: null, loading: 
 
 export function BusinessProvider({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
+  const { account } = useAccount();
   const [business, setBusiness] = useState<Business | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -17,20 +19,23 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   const refresh = useCallback(async () => {
-    if (!user) { setBusiness(null); setLoading(false); return; }
+    if (!user || (account && account.status !== "active")) { setBusiness(null); setLoading(false); return; }
     setLoading(true);
     try { setBusiness(await api<Business>("/businesses/me")); setFetchError(false); }
     catch (e) {
       if (e instanceof ApiError && e.code === "business_not_found") { setBusiness(null); setFetchError(false); }
       else { console.error(e); setBusiness(null); setFetchError(true); }
     } finally { setLoading(false); }
-  }, [user]);
+  }, [user, account]);
 
   useEffect(() => { if (!authLoading) void refresh(); }, [authLoading, refresh]);
 
   // Gating: signed-in without business -> /onboarding; with business, keep off /onboarding.
   useEffect(() => {
     if (authLoading || loading || !user) return;
+    // Pending/disabled users are gated to /pending and /disabled by AppShell — never bounce
+    // them to /onboarding.
+    if (account && account.status !== "active") return;
     // Read edit mode from the URL directly (effects only run client-side); useSearchParams
     // would force a Suspense boundary at the root layout.
     const editMode = new URLSearchParams(window.location.search).get("edit") === "1";
@@ -38,7 +43,7 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
     if (!business && !fetchError && pathname !== "/onboarding" && pathname !== "/login") router.replace("/onboarding");
     // edit=1 keeps owners on the form so they can edit their business details.
     if (business && pathname === "/onboarding" && !editMode) router.replace("/dashboard");
-  }, [authLoading, loading, user, business, fetchError, pathname, router]);
+  }, [authLoading, loading, user, account, business, fetchError, pathname, router]);
 
   return (
     <BusinessContext.Provider value={{ business, loading: authLoading || loading, fetchError, refresh }}>
