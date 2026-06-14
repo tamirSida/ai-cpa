@@ -29,7 +29,7 @@ def test_issue_non_draft_409_and_pdf_retry(db, make_business, stub_receipt_asset
     repaired = rs.issue_receipt(db, biz.id, issued.id)
     assert repaired.sequence_number == 1 and repaired.pdf_url
 
-def _issue_resilient(db, biz_id, draft_id, attempts=8):
+def _issue_resilient(db, biz_id, draft_id, attempts=10):
     # The Firestore EMULATOR uses pessimistic locking and raises Aborted "Transaction lock
     # timeout" under heavy parallel contention — a load artifact that does NOT occur against
     # real Firestore (optimistic concurrency aborts near-instantly and issue_receipt's own
@@ -40,7 +40,14 @@ def _issue_resilient(db, biz_id, draft_id, attempts=8):
     for i in range(attempts):
         try:
             return rs.issue_receipt(db, biz_id, draft_id)
-        except Aborted:
+        except (Aborted, ValueError) as e:
+            # Once issue_receipt's own max_attempts budget is spent, the Firestore transaction
+            # wrapper surfaces the repeated emulator-lock abort as
+            # ValueError("Failed to commit transaction in N attempts.") instead of Aborted — the
+            # same pessimistic-locking load artifact (does NOT occur against real Firestore), so
+            # retry the whole issue. Re-raise any OTHER ValueError (a genuine logic bug).
+            if isinstance(e, ValueError) and "Failed to commit transaction" not in str(e):
+                raise
             if i == attempts - 1:
                 raise
             time.sleep(0.25 * (i + 1))
