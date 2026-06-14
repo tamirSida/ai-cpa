@@ -99,6 +99,34 @@ def api(db, clear_db):  # depend on clear_db so seeding happens AFTER the DB wip
 
 
 @pytest.fixture()
+def admin_api(db, clear_db):  # depend on clear_db so seeding happens AFTER the DB wipe
+    from app.core import auth, firebase
+    from app.main import app
+
+    # Admin-gated routes require an ACTIVE admin; seed users/admin-uid accordingly.
+    _seed_user(
+        db,
+        uid="admin-uid",
+        email="admin@example.com",
+        displayName="Admin",
+        role="admin",
+        status="active",
+        aiBudgetUsd=None,
+    )
+
+    saved = dict(app.dependency_overrides)
+    app.dependency_overrides[auth.get_current_uid] = lambda: "admin-uid"  # kept; harmless
+    app.dependency_overrides[auth.get_token_identity] = lambda: auth.TokenIdentity(
+        uid="admin-uid", email="admin@example.com", name="Admin"
+    )
+    app.dependency_overrides[firebase.get_db] = lambda: db
+    with TestClient(app) as client:
+        yield client
+    app.dependency_overrides.clear()
+    app.dependency_overrides.update(saved)
+
+
+@pytest.fixture()
 def make_user(db):
     """Write a users/{uid} doc (default uid 'user-2', active) and return the dict."""
     def _make(**overrides) -> dict:
