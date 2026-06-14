@@ -7,11 +7,13 @@ import {
   FileText,
   Loader2,
   LogOut,
+  Shield,
   Users,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useAccount } from "@/lib/account";
 import { auth } from "@/lib/firebase";
 
 const LINKS = [
@@ -22,6 +24,7 @@ const LINKS = [
 
 export default function MorePage() {
   const router = useRouter();
+  const { account } = useAccount();
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,6 +44,16 @@ export default function MorePage() {
     <div className="px-4 pt-6">
       <h1 className="text-2xl font-semibold">עוד</h1>
       <div className="mt-4 flex flex-col gap-3">
+        {account?.role === "admin" && (
+          <Link
+            href="/admin"
+            className="flex min-h-12 items-center gap-3 rounded-2xl border border-border bg-white p-4 font-medium transition-transform duration-150 active:scale-[0.98]"
+          >
+            <Shield size={22} className="text-primary" aria-hidden />
+            <span className="flex-1 text-start">ניהול מערכת</span>
+            <ChevronLeft size={20} className="text-foreground/40" aria-hidden />
+          </Link>
+        )}
         {LINKS.map(({ href, label, Icon }) => (
           <Link
             key={href}
