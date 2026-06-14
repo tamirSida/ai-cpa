@@ -19,3 +19,10 @@ class User(CamelModel):
     approved_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+
+
+class UsageSummary(CamelModel):
+    month: str  # "YYYY-MM"
+    ai_cost_usd: float
+    ai_budget_usd: Optional[float]  # echoed from the user (None == Unlimited)
+    over_budget: bool  # cost >= budget (False when budget is None)

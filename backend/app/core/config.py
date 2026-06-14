@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     annual_limit_ils: int = 122833
     bootstrap_admin_emails: list[str] = []
     default_ai_budget_usd: float = 3.0
+    # USD per token. "default" is the fallback for unknown models.
+    openai_pricing: dict[str, dict[str, float]] = {
+        "gpt-4.1-mini": {"input": 0.40 / 1_000_000, "output": 1.60 / 1_000_000},
+        "default": {"input": 0.40 / 1_000_000, "output": 1.60 / 1_000_000},
+    }
     env: str = "dev"
 
 

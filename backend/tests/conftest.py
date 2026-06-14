@@ -96,6 +96,17 @@ def make_business(db):
 
 
 @pytest.fixture
+def freeze_month(monkeypatch):
+    """Pin app.services.usage_service.now_il to a fixed Israel-local datetime so
+    _month_key() is deterministically '2026-06' regardless of the wall clock."""
+    from app.utils.dates import IL_TZ
+
+    fixed = datetime(2026, 6, 15, 12, 0, tzinfo=IL_TZ)
+    monkeypatch.setattr("app.services.usage_service.now_il", lambda: fixed)
+    return fixed
+
+
+@pytest.fixture
 def stub_receipt_assets(monkeypatch):
     from app.services.cloudinary_service import UploadResult
     monkeypatch.setattr("app.services.receipt_service.render_pdf", lambda name, ctx: b"%PDF-1.7 stub")
