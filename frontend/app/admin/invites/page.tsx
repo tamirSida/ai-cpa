@@ -97,7 +97,7 @@ export default function AdminInvitesPage() {
     setRevoking(invite.id);
     setRowError(null);
     try {
-      await api(`/admin/invites/${invite.id}`, { method: "DELETE" });
+      await api(`/admin/invites/${encodeURIComponent(invite.id)}`, { method: "DELETE" });
       setInvites((list) =>
         list.map((i) => (i.id === invite.id ? { ...i, status: "revoked" } : i))
       );

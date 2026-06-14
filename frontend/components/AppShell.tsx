@@ -2,10 +2,12 @@
 
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { signOut } from "firebase/auth";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useAccount } from "@/lib/account";
 import { useBusiness } from "@/lib/business";
+import { auth } from "@/lib/firebase";
 import BottomNav from "./BottomNav";
 
 const BARE_ROUTES = ["/login", "/onboarding", "/pending", "/disabled"];
@@ -18,11 +20,36 @@ function Splash() {
   );
 }
 
+// Shown when GET /users/me fails (network/server). Without this we'd fall through to app
+// chrome with a null account, silently disabling the status gate — so offer retry/sign-out.
+function AccountError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="flex min-h-dvh flex-col items-center justify-center px-6">
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-white p-6 text-center">
+        <h1 className="text-xl font-semibold">לא הצלחנו לטעון את החשבון</h1>
+        <p className="mt-2 text-sm text-foreground/60">אירעה תקלה זמנית בטעינת פרטי החשבון. נסה שוב.</p>
+        <button
+          onClick={onRetry}
+          className="mt-5 min-h-12 w-full rounded-xl bg-primary font-medium text-on-primary active:scale-[0.98]"
+        >
+          נסה שוב
+        </button>
+        <button
+          onClick={() => void signOut(auth)}
+          className="mt-3 min-h-12 w-full rounded-xl border border-border font-medium text-foreground/70 active:scale-[0.98]"
+        >
+          התנתקות
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const { account, loading: accountLoading } = useAccount();
+  const { account, loading: accountLoading, fetchError: accountError, refresh: refreshAccount } = useAccount();
   const { loading: bizLoading } = useBusiness();
 
   // Status gate: lock pending users to /pending, disabled users to /disabled, and bounce
@@ -37,10 +64,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   if (pathname === "/login") return <>{children}</>;               // login renders immediately
   if (authLoading || (user && accountLoading)) return <Splash />;  // resolving auth/account
+  // signed in but /users/me failed (no account, not loading): offer retry, not broken chrome
+  if (user && !accountLoading && !account && accountError) return <AccountError onRetry={() => void refreshAccount()} />;
   // active user whose business is still loading, on a non-bare route -> splash (avoid chrome flash)
   if (user && account?.status === "active" && bizLoading && !BARE_ROUTES.includes(pathname)) return <Splash />;
-  // pending/disabled user on a deep route: the status-gate redirect is in flight — don't flash app chrome
-  if (user && account && account.status !== "active" && !BARE_ROUTES.includes(pathname)) return <Splash />;
+  // pending/disabled user: ONLY their own status screen may render; on any other route
+  // (incl. the bare /onboarding form) the status-gate redirect is in flight -> splash.
+  if (user && account && account.status !== "active") {
+    const allowed = account.status === "pending" ? "/pending" : "/disabled";
+    if (pathname !== allowed) return <Splash />;
+  }
 
   if (BARE_ROUTES.includes(pathname)) return <>{children}</>;
   return (
