@@ -76,13 +76,13 @@ def get_current_admin(user: User = Depends(require_active)) -> User:
 
 def get_owned_business(
     businessId: str,  # matches the {businessId} path param on every business-scoped route
-    uid: str = Depends(get_current_uid),
+    user: User = Depends(require_active),  # gates every business-scoped router (pending/disabled 403 first)
     db: firestore.Client = Depends(get_db),
 ) -> Business:
     snap = db.collection("businesses").document(businessId).get()
     if not snap.exists:
         api_error(404, "business_not_found", "Business not found")
     data = snap.to_dict()
-    if data.get("ownerUserId") != uid:
+    if data.get("ownerUserId") != user.uid:
         api_error(403, "forbidden", "You do not own this business")
     return Business.model_validate({**data, "id": snap.id})

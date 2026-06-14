@@ -27,13 +27,13 @@ def _user(**overrides) -> User:
 
 def test_owned_business_ok(db, make_business):
     biz = make_business()
-    result = get_owned_business(businessId=biz["id"], uid="test-uid", db=db)
+    result = get_owned_business(businessId=biz["id"], user=_user(uid="test-uid"), db=db)
     assert result.id == biz["id"] and result.owner_user_id == "test-uid"
 
 
 def test_owned_business_404(db):
     with pytest.raises(HTTPException) as exc:
-        get_owned_business(businessId="does-not-exist", uid="test-uid", db=db)
+        get_owned_business(businessId="does-not-exist", user=_user(uid="test-uid"), db=db)
     assert exc.value.status_code == 404
     assert exc.value.detail["code"] == "business_not_found"
 
@@ -41,7 +41,7 @@ def test_owned_business_404(db):
 def test_owned_business_403(db, make_business):
     biz = make_business(ownerUserId="someone-else")
     with pytest.raises(HTTPException) as exc:
-        get_owned_business(businessId=biz["id"], uid="test-uid", db=db)
+        get_owned_business(businessId=biz["id"], user=_user(uid="test-uid"), db=db)
     assert exc.value.status_code == 403
     assert exc.value.detail["code"] == "forbidden"
 
