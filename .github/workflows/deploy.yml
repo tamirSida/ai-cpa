@@ -54,9 +54,13 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
             docker compose -f docker-compose.prod.yml up -d --build api
-            sleep 5
+            # Wait for the cold start (heavy imports: weasyprint/pyhanko/openai) — up to ~80s.
+            echo "waiting for the API to come up..."
+            for i in $(seq 1 40); do
+              curl -fsS http://localhost:8001/healthz >/dev/null 2>&1 && break
+              sleep 2
+            done
             docker compose -f docker-compose.prod.yml ps api
-            curl -fsS http://localhost:8001/healthz
-            curl -fsS http://localhost:8001/readyz        # confirms the new container reaches Firestore
-            echo
+            curl -fsS http://localhost:8001/healthz; echo
+            curl -fsS http://localhost:8001/readyz;  echo   # confirms the new container reaches Firestore
             echo "API deploy succeeded."

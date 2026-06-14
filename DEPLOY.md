@@ -75,8 +75,12 @@ scp from your local machine over Tailscale (reuse your existing local cert + pas
 ```bash
 scp backend/secrets/firebase-sa.json backend/secrets/receipt-signing.p12 \
     dev@<tailscale-host>:/home/dev/apps/ai-cpa/backend/secrets/
-# then on the VPS:
-chmod 600 /home/dev/apps/ai-cpa/backend/secrets/*
+# then on the VPS — the API container runs as a NON-root user (appuser), so the mounted
+# secrets must be readable by it. `chmod 600` (owner-only) breaks startup with
+# "PermissionError: secrets/firebase-sa.json" because the container uid != host `dev`.
+# World-readable on the box is fine: backend/secrets/ is gitignored and the VPS is single-admin.
+chmod 755 /home/dev/apps/ai-cpa/backend/secrets
+chmod 644 /home/dev/apps/ai-cpa/backend/secrets/*
 ```
 
 ### 5. GitHub repo secrets (tax repo → Settings → Secrets and variables → Actions)
