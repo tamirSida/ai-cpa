@@ -1,3 +1,5 @@
+import re
+
 from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 
@@ -7,11 +9,24 @@ from app.schemas.user import AdminUserDetail, BusinessSummary, User
 from app.services import business_service, usage_service
 from app.utils.dates import now_il
 
+# Basic email shape: no '@', whitespace or '/' in any segment; requires a dotted domain.
+# '/' must be rejected because the normalized email is used as a Firestore document id.
+_EMAIL_RE = re.compile(r"^[^@\s/]+@[^@\s/]+\.[^@\s/]+$")
+_MAX_EMAIL_LEN = 320  # RFC 5321 max email length
+
 
 def _normalize_email(email: str) -> str:
+    """Lowercase/trim and validate. The result is used directly as a Firestore
+    document id (invites/{email}), so it must be a safe, sane email shape — reject
+    empties, control chars, '/' (path separator), over-length, or non-email strings."""
     norm = (email or "").strip().lower()
-    if not norm:
-        api_error(422, "invalid_email", "Email is required")
+    if (
+        not norm
+        or len(norm) > _MAX_EMAIL_LEN
+        or any(ord(ch) < 0x20 for ch in norm)  # control chars
+        or not _EMAIL_RE.match(norm)
+    ):
+        api_error(422, "invalid_email", "כתובת אימייל לא תקינה")
     return norm
 
 

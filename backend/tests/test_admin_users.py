@@ -180,3 +180,87 @@ def test_set_budget_unknown_404(admin_api):
     r = admin_api.post("/api/admin/users/nope/budget", json={"aiBudgetUsd": 1})
     assert r.status_code == 404
     assert r.json()["detail"]["code"] == "user_not_found"
+
+
+# --- budget hardening: reject non-finite / negative -------------------------
+
+def test_budget_negative_rejected(admin_api, make_user):
+    make_user(uid="u1", email="u1@x.com")
+    r = admin_api.post("/api/admin/users/u1/budget", json={"aiBudgetUsd": -1})
+    assert r.status_code == 422
+
+
+def test_budget_nan_rejected(admin_api, make_user):
+    # Python json.dumps emits bare NaN (invalid JSON but accepted by many parsers);
+    # post a raw body so the float reaches validation as NaN.
+    make_user(uid="u1", email="u1@x.com")
+    r = admin_api.post(
+        "/api/admin/users/u1/budget",
+        content=b'{"aiBudgetUsd": NaN}',
+        headers={"content-type": "application/json"},
+    )
+    assert r.status_code == 422
+
+
+def test_budget_infinity_rejected(admin_api, make_user):
+    make_user(uid="u1", email="u1@x.com")
+    r = admin_api.post(
+        "/api/admin/users/u1/budget",
+        content=b'{"aiBudgetUsd": Infinity}',
+        headers={"content-type": "application/json"},
+    )
+    assert r.status_code == 422
+
+
+def test_budget_null_still_unlimited(admin_api, db, make_user):
+    make_user(uid="u1", email="u1@x.com")
+    r = admin_api.post("/api/admin/users/u1/budget", json={"aiBudgetUsd": None})
+    assert r.status_code == 200
+    assert r.json()["aiBudgetUsd"] is None
+
+
+def test_budget_zero_allowed(admin_api, db, make_user):
+    make_user(uid="u1", email="u1@x.com")
+    r = admin_api.post("/api/admin/users/u1/budget", json={"aiBudgetUsd": 0})
+    assert r.status_code == 200
+    assert r.json()["aiBudgetUsd"] == 0
+
+
+def test_approve_negative_rejected(admin_api, make_user):
+    make_user(uid="p1", email="p1@x.com", status="pending")
+    r = admin_api.post("/api/admin/users/p1/approve", json={"aiBudgetUsd": -1})
+    assert r.status_code == 422
+
+
+def test_approve_nan_rejected(admin_api, make_user):
+    make_user(uid="p1", email="p1@x.com", status="pending")
+    r = admin_api.post(
+        "/api/admin/users/p1/approve",
+        content=b'{"aiBudgetUsd": NaN}',
+        headers={"content-type": "application/json"},
+    )
+    assert r.status_code == 422
+
+
+def test_approve_infinity_rejected(admin_api, make_user):
+    make_user(uid="p1", email="p1@x.com", status="pending")
+    r = admin_api.post(
+        "/api/admin/users/p1/approve",
+        content=b'{"aiBudgetUsd": Infinity}',
+        headers={"content-type": "application/json"},
+    )
+    assert r.status_code == 422
+
+
+def test_approve_null_still_unlimited(admin_api, make_user):
+    make_user(uid="p1", email="p1@x.com", status="pending")
+    r = admin_api.post("/api/admin/users/p1/approve", json={"aiBudgetUsd": None})
+    assert r.status_code == 200
+    assert r.json()["aiBudgetUsd"] is None
+
+
+def test_approve_zero_allowed(admin_api, make_user):
+    make_user(uid="p1", email="p1@x.com", status="pending")
+    r = admin_api.post("/api/admin/users/p1/approve", json={"aiBudgetUsd": 0})
+    assert r.status_code == 200
+    assert r.json()["aiBudgetUsd"] == 0

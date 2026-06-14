@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Literal, Optional
 
+from pydantic import Field
+
 from app.schemas.common import CamelModel
 
 Role = Literal["admin", "user"]
@@ -51,7 +53,9 @@ class AdminUserDetail(User):  # inherits all User fields
 
 
 class ApproveRequest(CamelModel):
-    ai_budget_usd: Optional[float] = 3.0  # omitted -> $3 default; explicit null -> Unlimited
+    # omitted -> $3 default; explicit null -> Unlimited.
+    # When not null: must be a finite number >= 0 (rejects negative / NaN / Infinity).
+    ai_budget_usd: Optional[float] = Field(default=3.0, ge=0, allow_inf_nan=False)
 
 
 class RoleRequest(CamelModel):
@@ -59,4 +63,6 @@ class RoleRequest(CamelModel):
 
 
 class BudgetRequest(CamelModel):
-    ai_budget_usd: Optional[float] = None  # null -> Unlimited
+    # null -> Unlimited. When not null: must be a finite number >= 0
+    # (rejects negative / NaN / Infinity).
+    ai_budget_usd: Optional[float] = Field(default=None, ge=0, allow_inf_nan=False)

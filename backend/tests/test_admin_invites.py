@@ -66,6 +66,26 @@ def test_create_already_a_user(admin_api, make_user):
     assert r.json()["detail"]["code"] == "user_already_exists"
 
 
+# --- email validation before doc-id use -------------------------------------
+
+def test_create_email_with_slash_rejected(admin_api):
+    r = admin_api.post("/api/admin/invites", json={"email": "a/b@x.com"})
+    assert r.status_code == 422
+    assert r.json()["detail"]["code"] == "invalid_email"
+
+
+def test_create_non_email_rejected(admin_api):
+    r = admin_api.post("/api/admin/invites", json={"email": "notanemail"})
+    assert r.status_code == 422
+    assert r.json()["detail"]["code"] == "invalid_email"
+
+
+def test_create_blank_email_rejected(admin_api):
+    r = admin_api.post("/api/admin/invites", json={"email": "   "})
+    assert r.status_code == 422
+    assert r.json()["detail"]["code"] == "invalid_email"
+
+
 # --- list -------------------------------------------------------------------
 
 def test_list_invites(admin_api):

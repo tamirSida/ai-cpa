@@ -1,7 +1,11 @@
+import math
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.core.config import get_settings
 from app.core.firebase import get_db, init_firebase
@@ -35,6 +39,29 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _strip_non_finite(value):
+    """Recursively replace NaN/Infinity floats with None so the error body can be
+    JSON-rendered (Starlette renders with allow_nan=False). Without this, a request
+    carrying NaN/Inf would 500 while *building* its own 422 validation response."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, dict):
+        return {k: _strip_non_finite(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_strip_non_finite(v) for v in value]
+    return value
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Preserve FastAPI's default 422 shape, but sanitize non-finite floats that the
+    request echoed back via the error `input` field (e.g. a rejected NaN budget)."""
+    return JSONResponse(
+        status_code=422,
+        content=jsonable_encoder({"detail": _strip_non_finite(exc.errors())}),
+    )
 
 
 app.include_router(businesses.router, prefix="/api")

@@ -1,3 +1,5 @@
+import math
+
 from google.cloud import firestore
 
 from app.core.config import Settings, get_settings
@@ -47,10 +49,18 @@ def current_month_cost_micro(db, uid: str) -> int:
 
 def assert_budget(db, user: User) -> None:
     """Hard block: raise 429 if this month's actual AI cost has reached the user's cap.
-    Unlimited (ai_budget_usd is None) never raises."""
+    Unlimited (ai_budget_usd is None) never raises.
+
+    Defense-in-depth: although the API edge already rejects negative / non-finite
+    budgets, guard against a bad *stored* value too. A non-finite cap (NaN/Inf) fails
+    closed (block), and a negative cap clamps to 0 — so we never silently grant
+    unlimited paid AI on corrupt data."""
     if user.ai_budget_usd is None:
         return
-    cap_micro = round(user.ai_budget_usd * MICRO)
+    if not math.isfinite(user.ai_budget_usd):
+        # NaN/Inf would break the >= comparison (NaN) or round() (Inf): fail closed.
+        api_error(429, "ai_budget_exceeded", "Monthly AI budget reached. Contact your administrator.")
+    cap_micro = max(round(user.ai_budget_usd * MICRO), 0)
     if current_month_cost_micro(db, user.uid) >= cap_micro:
         api_error(429, "ai_budget_exceeded", "Monthly AI budget reached. Contact your administrator.")
 

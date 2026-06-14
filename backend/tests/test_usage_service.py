@@ -136,6 +136,33 @@ def test_assert_budget_exactly_at_cap_raises(db, freeze_month):
     assert exc.value.status_code == 429
 
 
+def test_assert_budget_nan_fails_closed(db, freeze_month):
+    # Defense-in-depth: a bad stored value (NaN) must block, not silently pass.
+    from app.services.usage_service import assert_budget
+
+    with pytest.raises(HTTPException) as exc:
+        assert_budget(db, _user(uid="u1", ai_budget_usd=float("nan")))
+    assert exc.value.status_code == 429
+    assert exc.value.detail["code"] == "ai_budget_exceeded"
+
+
+def test_assert_budget_inf_fails_closed(db, freeze_month):
+    from app.services.usage_service import assert_budget
+
+    with pytest.raises(HTTPException) as exc:
+        assert_budget(db, _user(uid="u1", ai_budget_usd=float("inf")))
+    assert exc.value.status_code == 429
+
+
+def test_assert_budget_negative_treated_as_zero_blocks(db, freeze_month):
+    # A negative stored cap clamps to 0; any usage (even 0) is >= 0 -> blocks.
+    from app.services.usage_service import assert_budget
+
+    with pytest.raises(HTTPException) as exc:
+        assert_budget(db, _user(uid="u1", ai_budget_usd=-5.0))
+    assert exc.value.status_code == 429
+
+
 # --- usage_summary ----------------------------------------------------------
 
 def test_usage_summary_fresh_user(db, freeze_month):
