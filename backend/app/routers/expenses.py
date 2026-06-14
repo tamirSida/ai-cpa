@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, File, UploadFile
-from app.core.auth import get_owned_business
+from app.core.auth import get_owned_business, require_active
 from app.core.errors import api_error
 from app.core.firebase import get_db
 from app.schemas.business import Business
 from app.schemas.expense import Expense, ExpenseCreate, ExpensePatch
+from app.schemas.user import User
 from app.services import cloudinary_service, expense_service   # module-style import: tests monkeypatch attributes
 from app.services.openai_service import CommandParser, get_command_parser
 
@@ -55,5 +56,6 @@ def upload_expense_image(file: UploadFile = File(...),
 
 @router.post("/{expense_id}/extract", response_model=Expense)
 def extract(expense_id: str, business: Business = Depends(get_owned_business),
+            user: User = Depends(require_active),  # cached per-request: reuses get_owned_business's user
             db=Depends(get_db), parser: CommandParser = Depends(get_command_parser)):
-    return expense_service.run_extraction(db, business.id, expense_id, parser)
+    return expense_service.run_extraction(db, business.id, expense_id, parser, user)
