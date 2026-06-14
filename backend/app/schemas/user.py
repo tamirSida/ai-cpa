@@ -26,3 +26,14 @@ class UsageSummary(CamelModel):
     ai_cost_usd: float
     ai_budget_usd: Optional[float]  # echoed from the user (None == Unlimited)
     over_budget: bool  # cost >= budget (False when budget is None)
+
+
+class MeResponse(CamelModel):
+    uid: str
+    email: str
+    display_name: Optional[str]
+    role: Role
+    status: Status
+    ai_budget_usd: Optional[float]
+    usage: UsageSummary
+    has_business: bool
