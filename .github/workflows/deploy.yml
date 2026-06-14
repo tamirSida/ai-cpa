@@ -1,0 +1,42 @@
+name: Deploy API to VPS
+
+# Mirrors the ai_booking worker deploy: push to main → SSH in → the VPS pulls the new
+# commit and rebuilds the container. Runs alongside CI (ci.yml) and Netlify's own build.
+# Path-filtered so UI-only commits don't needlessly rebuild the API on the box.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "docker-compose.prod.yml"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch: {}            # manual trigger from the Actions tab
+
+# Don't let two pushes in quick succession step on each other mid-deploy.
+concurrency:
+  group: api-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd /home/dev/apps/ai-cpa
+            git fetch origin main
+            git reset --hard origin/main
+            docker compose -f docker-compose.prod.yml up -d --build api
+            sleep 5
+            docker compose -f docker-compose.prod.yml ps api
+            curl -fsS http://localhost:8001/healthz
+            echo
+            echo "API deploy succeeded."

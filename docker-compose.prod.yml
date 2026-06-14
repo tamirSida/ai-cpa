@@ -1,0 +1,24 @@
+# Production stack for the tax API — used STANDALONE on the VPS (not merged with the
+# dev docker-compose.yml). The host Caddy reverse-proxies tax-api.portfolio-plus.com to
+# this container's localhost-only published port.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build api
+#
+# Differences from the dev compose: real Firestore (no emulator), no --reload (uses the
+# Dockerfile CMD), app baked into the image (no source mount), published to 127.0.0.1 only,
+# restart: always, and a healthcheck.
+services:
+  api:
+    build: ./backend
+    image: tax-api
+    restart: always
+    env_file: [backend/.env]          # prod values, created on the VPS (gitignored)
+    ports:
+      - "127.0.0.1:8001:8000"         # localhost-only; Caddy on the host proxies to :8001
+    volumes:
+      - ./backend/secrets:/code/secrets:ro   # firebase-sa.json + receipt-signing.p12
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
