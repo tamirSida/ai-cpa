@@ -47,6 +47,8 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
+          timeout: 60s          # TCP connect timeout (default 30s) — tolerate a momentarily slow/busy VPS
+          command_timeout: 20m  # build + cold-start wait can exceed the 10m default
           script_stop: true
           script: |
             set -euo pipefail
@@ -54,13 +56,21 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
             docker compose -f docker-compose.prod.yml up -d --build api
-            # Wait for the cold start (heavy imports: weasyprint/pyhanko/openai) — up to ~80s.
+            # Cold start pulls heavy imports (weasyprint/pyhanko/openai/firebase) — give it up to ~3min.
+            # A transient curl exit 52 (empty reply) is EXPECTED while uvicorn is still importing behind
+            # the docker port proxy; only a sustained failure is a real problem.
             echo "waiting for the API to come up..."
-            for i in $(seq 1 40); do
-              curl -fsS http://localhost:8001/healthz >/dev/null 2>&1 && break
+            ok=0
+            for i in $(seq 1 90); do
+              if curl -fsS http://localhost:8001/healthz >/dev/null 2>&1; then ok=1; break; fi
               sleep 2
             done
             docker compose -f docker-compose.prod.yml ps api
+            if [ "$ok" != "1" ]; then
+              echo "API did not pass /healthz within ~180s — recent container logs:"
+              docker compose -f docker-compose.prod.yml logs --tail=120 api || true
+              exit 1
+            fi
             curl -fsS http://localhost:8001/healthz; echo
             curl -fsS http://localhost:8001/readyz;  echo   # confirms the new container reaches Firestore
             echo "API deploy succeeded."
