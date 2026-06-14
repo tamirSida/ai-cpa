@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, Query
-from app.core.auth import get_owned_business
+from app.core.auth import get_owned_business, require_active
 from app.core.errors import api_error
 from app.core.firebase import get_db
 from app.schemas.business import Business
+from app.schemas.user import User
 from app.schemas.chat import (ChatHistoryResponse, ChatMessage, ChatMessageRequest,
                               ChatTurnResult, ExecutionResult)
 from app.services import chat_service
@@ -12,11 +13,12 @@ router = APIRouter(prefix="/businesses/{businessId}/chat", tags=["chat"])
 
 @router.post("/message", response_model=ChatTurnResult)
 def post_message(body: ChatMessageRequest, business: Business = Depends(get_owned_business),
+                 user: User = Depends(require_active),  # cached per-request: reuses get_owned_business's user
                  db=Depends(get_db), parser: CommandParser = Depends(get_command_parser)):
     text = body.text.strip()
     if not text:
         api_error(422, "empty_message", "הודעה ריקה")
-    return chat_service.handle_message(db, parser, business, body.thread_id, text)
+    return chat_service.handle_message(db, parser, business, user, body.thread_id, text)
 
 @router.post("/actions/{action_id}/confirm", response_model=ExecutionResult)
 def confirm(action_id: str, business: Business = Depends(get_owned_business), db=Depends(get_db)):

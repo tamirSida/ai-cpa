@@ -9,8 +9,9 @@ from app.schemas.business import Business
 from app.schemas.chat import ActionView, ChatTurnResult, ExecutionResult
 from app.schemas.client import ClientCreate
 from app.schemas.receipt import CheckDetails, ReceiptDraftCreate
+from app.schemas.user import User
 from app.services import aggregation_service as agg
-from app.services import client_service, receipt_service, report_service
+from app.services import client_service, receipt_service, report_service, usage_service
 from app.utils.dates import now_il, resolve_time_range, today_il, year_bounds
 from app.utils.hebrew import (CANCEL_WORDS, CONFIRM_WORDS, build_confirmation_message,
                               build_followup_question, normalize, render_precheck_summary,
@@ -242,20 +243,23 @@ def cancel_action(db, business_id: str, action_id: str, reason: str = "user_canc
     ref.update({"status": "cancelled", "cancellationReason": reason, "updatedAt": now_il()})
     return data.get("threadId", "main")
 
-def handle_message(db, parser, business: Business, thread_id: str, text: str) -> ChatTurnResult:
+def handle_message(db, parser, business: Business, user: User, thread_id: str, text: str) -> ChatTurnResult:
     save_message(db, business.id, thread_id, "user", text)
     active = _load_active_action(db, business.id, thread_id)
     if active and active[1]["status"] == "pending_confirmation":          # fast path: NO LLM call
         norm = normalize(text)
-        if norm in CONFIRM_WORDS:
+        if norm in CONFIRM_WORDS:                                          # FREE: never budget-gated
             res = confirm_action(db, parser, business, active[0])
             return ChatTurnResult(assistant_text=res.assistant_text, action=res.action, result=res.result)
-        if norm in CANCEL_WORDS:
+        if norm in CANCEL_WORDS:                                           # FREE: never budget-gated
             cancel_action(db, business.id, active[0])
             reply = "הפעולה בוטלה."
             save_message(db, business.id, thread_id, "assistant", reply, action_id=active[0])
             return ChatTurnResult(assistant_text=reply, action=None)
-    cmd, _usage, _model = parser.parse_user_command(_build_context(db, business, thread_id, text, active), text)
+    usage_service.assert_budget(db, user)                                  # HARD BLOCK before any LLM call
+    cmd, usage, model = parser.parse_user_command(_build_context(db, business, thread_id, text, active), text)
+    if not isinstance(cmd, ParserFailure):                                 # charge every parsed call (incl. UNKNOWN/QUERY)
+        usage_service.record_cost(db, user.uid, model, usage)
     if isinstance(cmd, ParserFailure) or cmd.intent == IntentType.UNKNOWN:
         reply = FALLBACK + (("\n" + _current_question(active[1])) if active else "")
         # store what the parser returned (failure reason or UNKNOWN) for auditability
