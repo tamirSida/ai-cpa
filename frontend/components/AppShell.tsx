@@ -39,6 +39,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   if (authLoading || (user && accountLoading)) return <Splash />;  // resolving auth/account
   // active user whose business is still loading, on a non-bare route -> splash (avoid chrome flash)
   if (user && account?.status === "active" && bizLoading && !BARE_ROUTES.includes(pathname)) return <Splash />;
+  // pending/disabled user on a deep route: the status-gate redirect is in flight — don't flash app chrome
+  if (user && account && account.status !== "active" && !BARE_ROUTES.includes(pathname)) return <Splash />;
 
   if (BARE_ROUTES.includes(pathname)) return <>{children}</>;
   return (
