@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+
 import pytest
 from fastapi import HTTPException
 
@@ -100,3 +102,33 @@ def test_idempotency(db):
     assert second.status == "pending"  # NOT promoted
     assert second.role == "user"
     assert second.created_at == first.created_at
+
+
+def test_concurrent_first_signin_keeps_invited_active(db):
+    """Race regression: on first sign-in the frontend fires /users/me and
+    /businesses/me at once, so ensure_user can run concurrently for the same new
+    uid. The invited user must end up ACTIVE — never overwritten to pending by the
+    request that reads the invite as already consumed. Pre-transaction this could
+    leave the user pending (and the invite accepted)."""
+    now = now_il()
+    db.collection("invites").document("race@x.com").set(
+        {"status": "pending", "invitedByUid": "admin1", "createdAt": now, "updatedAt": now}
+    )
+
+    def call():
+        return user_service.ensure_user(
+            db, uid="race-uid", email="race@x.com", name="R", settings=_settings()
+        )
+
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        results = [f.result() for f in [ex.submit(call) for _ in range(4)]]
+
+    # Every concurrent caller sees an active user — no pending overwrite.
+    assert [u.status for u in results] == ["active"] * 4
+    final = db.collection("users").document("race-uid").get().to_dict()
+    assert final["status"] == "active"
+    assert final.get("invitedByUid") == "admin1"
+    # Invite consumed exactly once, atomically with the user creation.
+    invite = db.collection("invites").document("race@x.com").get().to_dict()
+    assert invite["status"] == "accepted"
+    assert invite["acceptedByUid"] == "race-uid"

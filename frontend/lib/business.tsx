@@ -19,7 +19,10 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   const refresh = useCallback(async () => {
-    if (!user || (account && account.status !== "active")) { setBusiness(null); setLoading(false); return; }
+    // Only fetch once the account is KNOWN-active. While the account is still loading
+    // (null) we must NOT hit /businesses/me — that would run ensure_user concurrently with
+    // /users/me on first sign-in and could race-overwrite an invited user back to pending.
+    if (!user || account?.status !== "active") { setBusiness(null); setLoading(false); return; }
     setLoading(true);
     try { setBusiness(await api<Business>("/businesses/me")); setFetchError(false); }
     catch (e) {
@@ -33,9 +36,10 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
   // Gating: signed-in without business -> /onboarding; with business, keep off /onboarding.
   useEffect(() => {
     if (authLoading || loading || !user) return;
-    // Pending/disabled users are gated to /pending and /disabled by AppShell — never bounce
-    // them to /onboarding.
-    if (account && account.status !== "active") return;
+    // Only run the onboarding redirect once the account is KNOWN-active. While it's still
+    // loading (null) or pending/disabled, AppShell owns the screen (splash / pending / disabled)
+    // — bouncing to /onboarding here would be premature/wrong.
+    if (account?.status !== "active") return;
     // Read edit mode from the URL directly (effects only run client-side); useSearchParams
     // would force a Suspense boundary at the root layout.
     const editMode = new URLSearchParams(window.location.search).get("edit") === "1";
