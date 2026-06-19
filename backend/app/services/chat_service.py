@@ -18,6 +18,7 @@ from app.utils.hebrew import (CANCEL_WORDS, CONFIRM_WORDS, build_confirmation_me
                               render_query_answer)
 from app.utils.money import round_ils
 from app.core.errors import api_error
+from app.core.i18n import tr
 
 def merge_payload(existing: dict, incoming: dict, intent: IntentType) -> dict:
     merged = dict(existing)
@@ -52,7 +53,6 @@ def compute_missing_fields(intent: IntentType, payload: dict) -> list[str]:
             missing.append("amount")
     return missing
 
-FALLBACK = "לא הצלחתי להבין, אפשר לנסח שוב?"
 ACTIVE_STATUSES = ("collecting_fields", "pending_confirmation")
 STALE_AFTER = timedelta(hours=24)
 CREATE_INTENTS = {IntentType.CREATE_RECEIPT, IntentType.CREATE_CONTACT,
@@ -160,7 +160,7 @@ def _flip_to_confirmed(db, action_ref) -> dict:
         return data
     return flip(tx)
 
-def _execute_receipt(db, business: Business, payload: dict, action_ref):
+def _execute_receipt(db, business: Business, payload: dict, action_ref, lang: str = "he"):
     existing_draft_id = payload.get("_draftId")
     if existing_draft_id:
         # retry after a prior issue failure: re-issue the SAME draft (issue_receipt is
@@ -188,16 +188,16 @@ def _execute_receipt(db, business: Business, payload: dict, action_ref):
         action_ref.update({"payload._draftId": draft.id})
         payload["_draftId"] = draft.id
         receipt = receipt_service.issue_receipt(db, business.id, draft.id)
-    return (f"נוצרה קבלה מספר {receipt.receipt_number}.",
+    return (tr(lang, "chat.receipt_created", n=receipt.receipt_number),
             {"receiptId": receipt.id, "receiptNumber": receipt.receipt_number, "pdfUrl": receipt.pdf_url})
 
-def _execute_contact(db, business, payload, action_ref):
+def _execute_contact(db, business, payload, action_ref, lang: str = "he"):
     client = client_service.create_client(db, business.id, ClientCreate(
         name=payload["name"], phone=payload.get("phone"), email=payload.get("email"),
         company_name=payload.get("company_name"), tax_id=payload.get("tax_id"), address=payload.get("address")))
-    return f"איש הקשר {client.name} נוסף בהצלחה.", {"clientId": client.id}
+    return tr(lang, "chat.contact_added", name=client.name), {"clientId": client.id}
 
-def _execute_expense(db, business, payload, action_ref):
+def _execute_expense(db, business, payload, action_ref, lang: str = "he"):
     from app.services import expense_service          # Phase 4 module — imported lazily on purpose
     from app.schemas.expense import ExpenseCreate
     expense = expense_service.create_expense(db, business.id, ExpenseCreate(
@@ -205,24 +205,24 @@ def _execute_expense(db, business, payload, action_ref):
         category=payload.get("category"), description=payload.get("description"),
         business_use_percent=payload.get("business_use_percent") or 100,
         expense_date=payload.get("expense_date")), source="chat")
-    note = " היא ממתינה לבדיקה כי חסרה קטגוריה." if expense.status == "needs_review" else ""
-    return f"ההוצאה נשמרה.{note}", {"expenseId": expense.id}
+    note = tr(lang, "chat.expense_needs_review_note") if expense.status == "needs_review" else ""
+    return tr(lang, "chat.expense_saved", note=note), {"expenseId": expense.id}
 
 _EXECUTORS = {"CREATE_RECEIPT": _execute_receipt, "CREATE_CONTACT": _execute_contact,
               "CREATE_EXPENSE": _execute_expense,
-              "GENERATE_ANNUAL_REPORT": lambda db, business, payload, action_ref:
-                  (f"מעולה. אפשר להפיק את הדוח השנתי לשנת {payload['year']} בעמוד הדוח השנתי.",
+              "GENERATE_ANNUAL_REPORT": lambda db, business, payload, action_ref, lang="he":
+                  (tr(lang, "chat.annual_report_ready", year=payload["year"]),
                    {"year": payload["year"], "link": "/annual-report"})}
 
-def confirm_action(db, parser_or_none, business: Business, action_id: str) -> ExecutionResult:
+def confirm_action(db, parser_or_none, business: Business, action_id: str, lang: str = "he") -> ExecutionResult:
     action_ref = _actions_col(db, business.id).document(action_id)
     data = _flip_to_confirmed(db, action_ref)
     thread_id, payload = data["threadId"], data["payload"]
     try:
-        reply, result = _EXECUTORS[data["type"]](db, business, payload, action_ref)
+        reply, result = _EXECUTORS[data["type"]](db, business, payload, action_ref, lang)
     except Exception as exc:                          # revert: user can confirm again
         action_ref.update({"status": "pending_confirmation", "errorNote": str(exc), "updatedAt": now_il()})
-        reply = "אירעה שגיאה בביצוע הפעולה. אפשר לנסות לאשר שוב."
+        reply = tr(lang, "chat.execution_error")
         save_message(db, business.id, thread_id, "assistant", reply, action_id=action_id)
         return ExecutionResult(assistant_text=reply, action=ActionView(
             id=action_id, type=data["type"], status="pending_confirmation", payload=payload, missing_fields=[]))
@@ -243,17 +243,18 @@ def cancel_action(db, business_id: str, action_id: str, reason: str = "user_canc
     ref.update({"status": "cancelled", "cancellationReason": reason, "updatedAt": now_il()})
     return data.get("threadId", "main")
 
-def handle_message(db, parser, business: Business, user: User, thread_id: str, text: str) -> ChatTurnResult:
+def handle_message(db, parser, business: Business, user: User, thread_id: str, text: str,
+                   lang: str = "he") -> ChatTurnResult:
     save_message(db, business.id, thread_id, "user", text)
     active = _load_active_action(db, business.id, thread_id)
     if active and active[1]["status"] == "pending_confirmation":          # fast path: NO LLM call
         norm = normalize(text)
         if norm in CONFIRM_WORDS:                                          # FREE: never budget-gated
-            res = confirm_action(db, parser, business, active[0])
+            res = confirm_action(db, parser, business, active[0], lang)
             return ChatTurnResult(assistant_text=res.assistant_text, action=res.action, result=res.result)
         if norm in CANCEL_WORDS:                                           # FREE: never budget-gated
             cancel_action(db, business.id, active[0])
-            reply = "הפעולה בוטלה."
+            reply = tr(lang, "chat.cancelled")
             save_message(db, business.id, thread_id, "assistant", reply, action_id=active[0])
             return ChatTurnResult(assistant_text=reply, action=None)
     usage_service.assert_budget(db, user)                                  # HARD BLOCK before any LLM call
@@ -261,13 +262,13 @@ def handle_message(db, parser, business: Business, user: User, thread_id: str, t
     if not isinstance(cmd, ParserFailure):                                 # charge every parsed call (incl. UNKNOWN/QUERY)
         usage_service.record_cost(db, user.uid, model, usage)
     if isinstance(cmd, ParserFailure) or cmd.intent == IntentType.UNKNOWN:
-        reply = FALLBACK + (("\n" + _current_question(active[1])) if active else "")
+        reply = tr(lang, "chat.fallback") + (("\n" + _current_question(active[1])) if active else "")
         # store what the parser returned (failure reason or UNKNOWN) for auditability
         parsed = cmd.model_dump(mode="json") if hasattr(cmd, "model_dump") else None
         save_message(db, business.id, thread_id, "assistant", reply, parsed_intent=parsed)
         return ChatTurnResult(assistant_text=reply, action=_action_view(*active) if active else None)
     if cmd.intent == IntentType.QUERY:                                     # queries never create actions
-        reply = _answer_query(db, business, cmd.query)
+        reply = _answer_query(db, business, cmd.query, lang)
         if active: reply = f"{reply}\n\n{_current_question(active[1])}"
         save_message(db, business.id, thread_id, "assistant", reply,
                      action_id=active[0] if active else None, parsed_intent=cmd.model_dump(mode="json"))
@@ -293,11 +294,11 @@ def handle_message(db, parser, business: Business, user: User, thread_id: str, t
     return ChatTurnResult(assistant_text=reply, action=ActionView(
         id=action_id, type=cmd.intent.value, status=status, payload=payload, missing_fields=missing))
 
-def _answer_query(db, business: Business, qp) -> str:
+def _answer_query(db, business: Business, qp, lang: str = "he") -> str:
     qp = qp or QueryPayload(); qtype = qp.type or QueryType.UNKNOWN
-    tr = qp.time_range or TimeRange(preset=TimePreset.THIS_YEAR)
-    if tr.preset is None: tr.preset = TimePreset.THIS_YEAR                 # server default
-    start, end = resolve_time_range(tr); period = tr.preset.value; bid = business.id
+    time_range = qp.time_range or TimeRange(preset=TimePreset.THIS_YEAR)
+    if time_range.preset is None: time_range.preset = TimePreset.THIS_YEAR  # server default
+    start, end = resolve_time_range(time_range); period = time_range.preset.value; bid = business.id
     year = start.year if start else today_il().year
     if qtype == QueryType.TOTAL_REVENUE:
         return render_query_answer(qtype, {"period": period, "total": agg.total_revenue(db, bid, start, end)})
@@ -307,11 +308,11 @@ def _answer_query(db, business: Business, qp) -> str:
         rev, exp = agg.total_revenue(db, bid, start, end), agg.total_expenses(db, bid, start, end)
         return render_query_answer(qtype, {"period": period, "profit": round_ils(rev - exp), "revenue": rev, "expenses": exp})
     if qtype == QueryType.CLIENT_REVENUE:
-        if not qp.client_name: return "לאיזה לקוח הכוונה?"
+        if not qp.client_name: return tr(lang, "chat.which_client")
         return render_query_answer(qtype, {"client_name": qp.client_name,
                                            "total": agg.client_revenue(db, bid, qp.client_name)})
     if qtype == QueryType.CONTACT_EXISTS:
-        if not qp.client_name: return "לאיזה איש קשר הכוונה?"
+        if not qp.client_name: return tr(lang, "chat.which_contact")
         exists = any(c.name.strip() == qp.client_name.strip()
                      for c in client_service.find_clients_by_name(db, bid, qp.client_name))
         return render_query_answer(qtype, {"client_name": qp.client_name, "exists": exists})

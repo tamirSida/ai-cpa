@@ -6,31 +6,32 @@ from app.schemas.business import Business
 from app.schemas.dashboard import (DashboardCounts, DashboardResponse, DashboardTotals,
                                    MonthlyIncomeEntry, RecentExpense, RecentReceipt, ThresholdOut)
 from app.services import aggregation_service
+from app.core.i18n import tr
 from app.utils.dates import month_bounds, today_il, year_bounds
 from app.utils.money import format_ils, round_ils
 
-_PROFILE_FIELD_LABELS = [("address", "כתובת"), ("phone", "טלפון"), ("email", "אימייל")]
+# (business attr, i18n key) — label localized via tr(lang, key)
+_PROFILE_FIELD_LABELS = [("address", "dashboard.field.address"), ("phone", "dashboard.field.phone"),
+                         ("email", "dashboard.field.email")]
 
 
 def build_warnings(business: Business, needs_review_count: int,
-                   threshold: ThresholdOut, missing_pdf_count: int) -> list[str]:
+                   threshold: ThresholdOut, missing_pdf_count: int, lang: str = "he") -> list[str]:
     warnings: list[str] = []
     if needs_review_count > 0:
-        warnings.append(f"{needs_review_count} הוצאות ממתינות לבדיקה")
-    missing = [label for attr, label in _PROFILE_FIELD_LABELS if not getattr(business, attr, None)]
+        warnings.append(tr(lang, "dashboard.warning.needs_review", count=needs_review_count))
+    missing = [tr(lang, key) for attr, key in _PROFILE_FIELD_LABELS if not getattr(business, attr, None)]
     if missing:
-        warnings.append("חסרים פרטים בפרופיל העסק: " + ", ".join(missing))
+        warnings.append(tr(lang, "dashboard.warning.missing_profile", fields=", ".join(missing)))
     if threshold.warning:
-        warnings.append(
-            f"הגעת ל-{threshold.pct:.0f}% מתקרת עוסק פטור "
-            f"({format_ils(threshold.total)} מתוך {format_ils(threshold.limit)})"
-        )
+        warnings.append(tr(lang, "dashboard.warning.threshold", pct=f"{threshold.pct:.0f}",
+                           total=format_ils(threshold.total), limit=format_ils(threshold.limit)))
     if missing_pdf_count > 0:
-        warnings.append(f"{missing_pdf_count} קבלות ללא קובץ PDF")
+        warnings.append(tr(lang, "dashboard.warning.missing_pdf", count=missing_pdf_count))
     return warnings
 
 
-def get_dashboard(db: firestore.Client, business: Business) -> DashboardResponse:
+def get_dashboard(db: firestore.Client, business: Business, lang: str = "he") -> DashboardResponse:
     today = today_il()
     year, month = today.year, today.month
     y_start, y_end = year_bounds(year)
@@ -89,5 +90,5 @@ def get_dashboard(db: firestore.Client, business: Business) -> DashboardResponse
                                        amount=e.get("amount"), category=e.get("category"),
                                        expense_date=e.get("expenseDate"), status=e["status"])
                          for e in r["recent_expenses"]],
-        warnings=build_warnings(business, r["needs_review"], threshold, r["missing_pdf"]),
+        warnings=build_warnings(business, r["needs_review"], threshold, r["missing_pdf"], lang),
     )
