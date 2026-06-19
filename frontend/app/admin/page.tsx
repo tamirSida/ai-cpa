@@ -4,10 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Loader2, Users } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import Sheet from "@/components/Sheet";
-import { api, ApiError } from "@/lib/apiClient";
+import { api } from "@/lib/apiClient";
 import { useAccount } from "@/lib/account";
+import { useI18n } from "@/lib/i18n";
 import { formatUsd } from "@/lib/format";
-import { ACCOUNT_STATUS_LABELS, ROLE_LABELS, UNLIMITED_LABEL } from "@/lib/labels";
 import type { AccountStatus, AdminUser, AdminUserDetail, Role } from "@/lib/types";
 
 const STATUS_BADGE: Record<AccountStatus, string> = {
@@ -21,16 +21,16 @@ const ROLE_BADGE: Record<Role, string> = {
   user: "bg-muted text-foreground/60",
 };
 
-const TABS: { value: AccountStatus; label: string }[] = [
-  { value: "pending", label: "ממתינים" },
-  { value: "active", label: "פעילים" },
-  { value: "disabled", label: "מושבתים" },
+const TABS: { value: AccountStatus; labelKey: string }[] = [
+  { value: "pending", labelKey: "admin.tabPending" },
+  { value: "active", labelKey: "admin.tabActive" },
+  { value: "disabled", labelKey: "admin.tabDisabled" },
 ];
 
 const EMPTY_TITLES: Record<AccountStatus, string> = {
-  pending: "אין משתמשים בהמתנה",
-  active: "אין משתמשים פעילים",
-  disabled: "אין משתמשים מושבתים",
+  pending: "admin.emptyPending",
+  active: "admin.emptyActive",
+  disabled: "admin.emptyDisabled",
 };
 
 function inputClass(invalid: boolean): string {
@@ -40,32 +40,36 @@ function inputClass(invalid: boolean): string {
 }
 
 function StatusBadge({ status }: { status: AccountStatus }) {
+  const { t } = useI18n();
   return (
     <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_BADGE[status]}`}>
-      {ACCOUNT_STATUS_LABELS[status]}
+      {t(`accountStatus.${status}`)}
     </span>
   );
 }
 
 function RoleBadge({ role }: { role: Role }) {
+  const { t } = useI18n();
   return (
     <span className={`rounded-full px-2 py-0.5 text-xs ${ROLE_BADGE[role]}`}>
-      {ROLE_LABELS[role]}
+      {t(`role.${role}`)}
     </span>
   );
 }
 
 function BudgetText({ aiBudgetUsd }: { aiBudgetUsd: number | null }) {
-  if (aiBudgetUsd === null) return <>{UNLIMITED_LABEL}</>;
+  const { t } = useI18n();
+  if (aiBudgetUsd === null) return <>{t("common.unlimited")}</>;
   return (
     <>
-      <span dir="ltr">{formatUsd(aiBudgetUsd)}</span> לחודש
+      <span dir="ltr">{formatUsd(aiBudgetUsd)}</span> {t("admin.perMonth")}
     </>
   );
 }
 
 export default function AdminUsersPage() {
   const { account } = useAccount();
+  const { t, tError } = useI18n();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,8 +95,8 @@ export default function AdminUsersPage() {
         setUsers(rows);
         setLoaded(true);
       })
-      .catch((e) => setError((e as Error).message));
-  }, []);
+      .catch((e) => setError(tError(e)));
+  }, [tError]);
 
   const pendingCount = useMemo(
     () => users.filter((u) => u.status === "pending").length,
@@ -118,7 +122,7 @@ export default function AdminUsersPage() {
     setDetailLoading(true);
     api<AdminUserDetail>(`/admin/users/${u.uid}`)
       .then(setDetail)
-      .catch((e) => setSheetError((e as Error).message))
+      .catch((e) => setSheetError(tError(e)))
       .finally(() => setDetailLoading(false));
   }
 
@@ -146,7 +150,7 @@ export default function AdminUsersPage() {
       });
       applyUpdate(updated);
     } catch (e) {
-      setSheetError(e instanceof ApiError ? e.message : (e as Error).message);
+      setSheetError(tError(e));
     } finally {
       setBusy(false);
     }
@@ -156,7 +160,7 @@ export default function AdminUsersPage() {
     if (unlimited) return null;
     const n = Number(amount);
     if (!amount.trim() || !Number.isFinite(n) || n <= 0) {
-      setAmountError("יש להזין סכום חיובי");
+      setAmountError(t("admin.positiveAmount"));
       return false;
     }
     return n;
@@ -186,21 +190,21 @@ export default function AdminUsersPage() {
 
       <div
         role="tablist"
-        aria-label="סינון משתמשים"
+        aria-label={t("admin.filterUsers")}
         className="mb-4 flex rounded-xl border border-border bg-muted p-1"
       >
-        {TABS.map((t) => (
+        {TABS.map((tab) => (
           <button
-            key={t.value}
+            key={tab.value}
             role="tab"
-            aria-selected={filter === t.value}
-            onClick={() => setFilter(t.value)}
+            aria-selected={filter === tab.value}
+            onClick={() => setFilter(tab.value)}
             className={`flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-lg text-sm font-medium transition-colors ${
-              filter === t.value ? "bg-white text-foreground shadow-sm" : "text-foreground/60"
+              filter === tab.value ? "bg-white text-foreground shadow-sm" : "text-foreground/60"
             }`}
           >
-            {t.label}
-            {t.value === "pending" && pendingCount > 0 && (
+            {t(tab.labelKey)}
+            {tab.value === "pending" && pendingCount > 0 && (
               <span dir="ltr" className="tnum rounded-full bg-amber-500 px-1.5 text-xs font-semibold text-white">
                 {pendingCount}
               </span>
@@ -214,7 +218,7 @@ export default function AdminUsersPage() {
           type="search"
           dir="ltr"
           inputMode="email"
-          placeholder="חיפוש לפי אימייל"
+          placeholder={t("admin.searchByEmail")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className={inputClass(false)}
@@ -231,7 +235,7 @@ export default function AdminUsersPage() {
           ))}
         </div>
       ) : visible.length === 0 ? (
-        <EmptyState Icon={Users} title={EMPTY_TITLES[filter]} />
+        <EmptyState Icon={Users} title={t(EMPTY_TITLES[filter])} />
       ) : (
         <>
           <ul className="flex flex-col gap-3 md:hidden">
@@ -260,10 +264,10 @@ export default function AdminUsersPage() {
             <table className="w-full text-sm">
               <thead className="border-b border-border bg-muted/50">
                 <tr>
-                  <th className="p-3 text-start font-medium">אימייל</th>
-                  <th className="p-3 text-start font-medium">תפקיד</th>
-                  <th className="p-3 text-start font-medium">סטטוס</th>
-                  <th className="p-3 text-start font-medium">תקציב</th>
+                  <th className="p-3 text-start font-medium">{t("admin.colEmail")}</th>
+                  <th className="p-3 text-start font-medium">{t("admin.colRole")}</th>
+                  <th className="p-3 text-start font-medium">{t("admin.colStatus")}</th>
+                  <th className="p-3 text-start font-medium">{t("admin.colBudget")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -297,14 +301,14 @@ export default function AdminUsersPage() {
             {detailLoading ? (
               <div className="flex items-center gap-2 text-sm text-foreground/60">
                 <Loader2 size={16} className="animate-spin" aria-hidden />
-                טוען פרטים…
+                {t("admin.loadingDetails")}
               </div>
             ) : detail ? (
               <p className="text-sm text-foreground/70">
-                שימוש החודש:{" "}
+                {t("admin.usageThisMonth")}{" "}
                 <span dir="ltr">
                   {formatUsd(detail.usage.aiCostUsd)} /{" "}
-                  {detail.aiBudgetUsd === null ? UNLIMITED_LABEL : formatUsd(detail.aiBudgetUsd)}
+                  {detail.aiBudgetUsd === null ? t("common.unlimited") : formatUsd(detail.aiBudgetUsd)}
                 </span>
               </p>
             ) : null}
@@ -313,11 +317,11 @@ export default function AdminUsersPage() {
             {(selected.status === "pending" || selected.status === "active") && (
               <div className="flex flex-col gap-3 rounded-xl border border-border p-3">
                 <p className="text-sm font-medium">
-                  {selected.status === "pending" ? "תקציב AI לאישור" : "תקציב AI"}
+                  {selected.status === "pending" ? t("admin.aiBudgetApprove") : t("admin.aiBudget")}
                 </p>
                 <div>
                   <label htmlFor="budget-amount" className="mb-1 block text-sm text-foreground/60">
-                    סכום חודשי ($)
+                    {t("admin.monthlyAmountUsd")}
                   </label>
                   <input
                     id="budget-amount"
@@ -346,12 +350,12 @@ export default function AdminUsersPage() {
                     }}
                     className="size-5 accent-primary"
                   />
-                  <span className="text-sm">{UNLIMITED_LABEL}</span>
+                  <span className="text-sm">{t("common.unlimited")}</span>
                 </label>
 
                 {unlimited && (
                   <div className="flex flex-col gap-2 rounded-xl bg-amber-100 p-3 text-sm text-amber-800">
-                    <p>תקציב ללא הגבלה — המשתמש יוכל לצבור עלויות AI ללא תקרה.</p>
+                    <p>{t("admin.unlimitedWarning")}</p>
                     <label className="flex items-center gap-2">
                       <input
                         type="checkbox"
@@ -359,7 +363,7 @@ export default function AdminUsersPage() {
                         onChange={(e) => setConfirmUnlimited(e.target.checked)}
                         className="size-5 accent-amber-600"
                       />
-                      <span>הבנתי, אשר ללא הגבלה</span>
+                      <span>{t("admin.unlimitedConfirm")}</span>
                     </label>
                   </div>
                 )}
@@ -370,7 +374,7 @@ export default function AdminUsersPage() {
                   className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 font-medium text-on-primary transition-transform duration-150 active:scale-[0.98] disabled:opacity-50"
                 >
                   {busy && <Loader2 size={20} className="animate-spin" aria-hidden />}
-                  {selected.status === "pending" ? "אשר משתמש" : "שמירת תקציב"}
+                  {selected.status === "pending" ? t("admin.approveUser") : t("admin.saveBudget")}
                 </button>
               </div>
             )}
@@ -386,10 +390,10 @@ export default function AdminUsersPage() {
                 disabled={busy || isSelf}
                 className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-white px-5 font-medium transition-transform duration-150 active:scale-[0.98] disabled:opacity-50"
               >
-                {selected.role === "admin" ? "הפוך למשתמש רגיל" : "הפוך למנהל"}
+                {selected.role === "admin" ? t("admin.makeUser") : t("admin.makeAdmin")}
               </button>
               {isSelf && (
-                <p className="mt-1 text-sm text-foreground/60">לא ניתן לשנות את התפקיד של עצמך</p>
+                <p className="mt-1 text-sm text-foreground/60">{t("admin.cannotChangeOwnRole")}</p>
               )}
             </div>
 
@@ -400,7 +404,7 @@ export default function AdminUsersPage() {
                 disabled={busy}
                 className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-white px-5 font-medium transition-transform duration-150 active:scale-[0.98] disabled:opacity-50"
               >
-                הפעל חשבון
+                {t("admin.enableAccount")}
               </button>
             ) : (
               <div>
@@ -409,10 +413,10 @@ export default function AdminUsersPage() {
                   disabled={busy || isSelf}
                   className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-destructive bg-white px-5 font-medium text-destructive transition-transform duration-150 active:scale-[0.98] disabled:opacity-50"
                 >
-                  השבת חשבון
+                  {t("admin.disableAccount")}
                 </button>
                 {isSelf && (
-                  <p className="mt-1 text-sm text-foreground/60">לא ניתן להשבית את החשבון שלך</p>
+                  <p className="mt-1 text-sm text-foreground/60">{t("admin.cannotDisableSelf")}</p>
                 )}
               </div>
             )}

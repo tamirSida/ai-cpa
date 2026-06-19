@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Loader2, Send } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
 
 type ChatInputProps = {
   onSend: (text: string) => void;
@@ -9,6 +10,7 @@ type ChatInputProps = {
 };
 
 export default function ChatInput({ onSend, disabled }: ChatInputProps) {
+  const { t, lang } = useI18n();
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -42,8 +44,8 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
         ref={textareaRef}
         value={text}
         rows={1}
-        aria-label="הודעה"
-        placeholder="מה קרה בעסק?"
+        aria-label={t("chat.messageLabel")}
+        placeholder={t("chat.placeholder")}
         onChange={(e) => {
           setText(e.target.value);
           autoGrow();
@@ -55,13 +57,13 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
         onClick={submit}
         onMouseDown={(e) => e.preventDefault()}
         disabled={disabled || !text.trim()}
-        aria-label="שליחה"
+        aria-label={t("chat.send")}
         className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-on-primary transition-transform duration-150 active:scale-[0.98] disabled:opacity-50"
       >
         {disabled ? (
           <Loader2 size={20} className="animate-spin" aria-hidden />
         ) : (
-          <Send size={20} className="-scale-x-100" aria-hidden />
+          <Send size={20} className={lang === "he" ? "-scale-x-100" : undefined} aria-hidden />
         )}
       </button>
     </div>

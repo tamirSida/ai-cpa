@@ -5,6 +5,7 @@ import EmptyState from "@/components/EmptyState";
 import Sheet from "@/components/Sheet";
 import { api } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth";
+import { useI18n } from "@/lib/i18n";
 import type { Business, Client } from "@/lib/types";
 
 const EMPTY_FORM = { name: "", phone: "", email: "" };
@@ -16,6 +17,7 @@ function inputClass(invalid: boolean): string {
 }
 
 export default function ClientsPage() {
+  const { t, lang, tError } = useI18n();
   const { user, loading } = useAuth();
   const [business, setBusiness] = useState<Business | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
@@ -36,8 +38,8 @@ export default function ClientsPage() {
         setClients(await api<Client[]>(`/businesses/${b.id}/clients`));
         setLoaded(true);
       })
-      .catch((e) => setError((e as Error).message));
-  }, [loading, user]);
+      .catch((e) => setError(tError(e)));
+  }, [loading, user, tError]);
 
   function openCreate() {
     setEditing(null);
@@ -59,7 +61,7 @@ export default function ClientsPage() {
     e.preventDefault();
     if (!business) return;
     if (!form.name.trim()) {
-      setNameError("נדרש שם לקוח");
+      setNameError(t("clients.nameRequired"));
       return;
     }
     setBusy(true);
@@ -73,15 +75,15 @@ export default function ClientsPage() {
       if (editing) {
         const updated = await api<Client>(`/businesses/${business.id}/clients/${editing.id}`, { method: "PATCH", body });
         setClients((cs) =>
-          cs.map((c) => (c.id === updated.id ? updated : c)).sort((a, b) => a.name.localeCompare(b.name, "he"))
+          cs.map((c) => (c.id === updated.id ? updated : c)).sort((a, b) => a.name.localeCompare(b.name, lang))
         );
       } else {
         const created = await api<Client>(`/businesses/${business.id}/clients`, { method: "POST", body });
-        setClients((cs) => [...cs, created].sort((a, b) => a.name.localeCompare(b.name, "he")));
+        setClients((cs) => [...cs, created].sort((a, b) => a.name.localeCompare(b.name, lang)));
       }
       setSheetOpen(false);
     } catch (err) {
-      setSheetError((err as Error).message);
+      setSheetError(tError(err));
     } finally {
       setBusy(false);
     }
@@ -90,13 +92,13 @@ export default function ClientsPage() {
   return (
     <div className="px-4 py-6">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">לקוחות</h1>
+        <h1 className="text-2xl font-bold">{t("clients.title")}</h1>
         <button
           onClick={openCreate}
           className="flex min-h-12 items-center gap-1.5 rounded-xl bg-primary px-5 font-medium text-on-primary transition-transform duration-150 active:scale-[0.98]"
         >
           <Plus size={20} aria-hidden />
-          לקוח חדש
+          {t("clients.newClient")}
         </button>
       </div>
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
@@ -112,8 +114,8 @@ export default function ClientsPage() {
       ) : clients.length === 0 ? (
         <EmptyState
           Icon={Users}
-          title="אין עדיין לקוחות"
-          hint="הוסיפו לקוח בכפתור למעלה, או כתבו בצ׳אט: יש לי לקוח חדש בשם נועה"
+          title={t("clients.emptyTitle")}
+          hint={t("clients.emptyHint")}
         />
       ) : (
         <ul className="flex flex-col gap-3">
@@ -139,10 +141,10 @@ export default function ClientsPage() {
           ))}
         </ul>
       )}
-      <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title={editing ? "עריכת לקוח" : "לקוח חדש"}>
+      <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title={editing ? t("clients.editClient") : t("clients.newClient")}>
         <form onSubmit={saveClient} noValidate className="flex flex-col gap-4">
           <div>
-            <label htmlFor="client-name" className="mb-1 block text-sm font-medium">שם *</label>
+            <label htmlFor="client-name" className="mb-1 block text-sm font-medium">{t("clients.nameLabel")}</label>
             <input
               id="client-name"
               value={form.name}
@@ -151,13 +153,13 @@ export default function ClientsPage() {
                 setForm({ ...form, name: e.target.value });
                 if (nameError) setNameError(null);
               }}
-              onBlur={() => setNameError(form.name.trim() ? null : "נדרש שם לקוח")}
+              onBlur={() => setNameError(form.name.trim() ? null : t("clients.nameRequired"))}
               className={inputClass(Boolean(nameError))}
             />
             {nameError && <p className="mt-1 text-sm text-destructive">{nameError}</p>}
           </div>
           <div>
-            <label htmlFor="client-phone" className="mb-1 block text-sm font-medium">טלפון (רשות)</label>
+            <label htmlFor="client-phone" className="mb-1 block text-sm font-medium">{t("clients.phoneLabel")}</label>
             <input
               id="client-phone"
               type="tel"
@@ -169,7 +171,7 @@ export default function ClientsPage() {
             />
           </div>
           <div>
-            <label htmlFor="client-email" className="mb-1 block text-sm font-medium">אימייל (רשות)</label>
+            <label htmlFor="client-email" className="mb-1 block text-sm font-medium">{t("clients.emailLabel")}</label>
             <input
               id="client-email"
               type="email"
@@ -187,7 +189,7 @@ export default function ClientsPage() {
             className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 font-medium text-on-primary transition-transform duration-150 active:scale-[0.98] disabled:opacity-50"
           >
             {busy && <Loader2 size={20} className="animate-spin" aria-hidden />}
-            {editing ? "שמירת שינויים" : "הוספת לקוח"}
+            {editing ? t("clients.saveChanges") : t("clients.addClient")}
           </button>
         </form>
       </Sheet>

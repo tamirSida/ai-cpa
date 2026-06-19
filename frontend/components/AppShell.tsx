@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth";
 import { useAccount } from "@/lib/account";
 import { useBusiness } from "@/lib/business";
 import { auth } from "@/lib/firebase";
+import { useT } from "@/lib/i18n";
 import BottomNav from "./BottomNav";
 
 const BARE_ROUTES = ["/login", "/onboarding", "/pending", "/disabled"];
@@ -23,22 +24,23 @@ function Splash() {
 // Shown when GET /users/me fails (network/server). Without this we'd fall through to app
 // chrome with a null account, silently disabling the status gate — so offer retry/sign-out.
 function AccountError({ onRetry }: { onRetry: () => void }) {
+  const t = useT();
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center px-6">
       <div className="w-full max-w-sm rounded-2xl border border-border bg-white p-6 text-center">
-        <h1 className="text-xl font-semibold">לא הצלחנו לטעון את החשבון</h1>
-        <p className="mt-2 text-sm text-foreground/60">אירעה תקלה זמנית בטעינת פרטי החשבון. נסה שוב.</p>
+        <h1 className="text-xl font-semibold">{t("misc.accountLoadFailedTitle")}</h1>
+        <p className="mt-2 text-sm text-foreground/60">{t("misc.accountLoadFailedBody")}</p>
         <button
           onClick={onRetry}
           className="mt-5 min-h-12 w-full rounded-xl bg-primary font-medium text-on-primary active:scale-[0.98]"
         >
-          נסה שוב
+          {t("misc.tryAgain")}
         </button>
         <button
           onClick={() => void signOut(auth)}
           className="mt-3 min-h-12 w-full rounded-xl border border-border font-medium text-foreground/70 active:scale-[0.98]"
         >
-          התנתקות
+          {t("common.signOut")}
         </button>
       </div>
     </div>

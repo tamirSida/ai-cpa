@@ -13,19 +13,21 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import LangToggle from "@/components/LangToggle";
 import { useAccount } from "@/lib/account";
 import { auth } from "@/lib/firebase";
 import { formatUsd } from "@/lib/format";
-import { UNLIMITED_LABEL } from "@/lib/labels";
+import { useI18n } from "@/lib/i18n";
 
 const LINKS = [
-  { href: "/clients", label: "לקוחות", Icon: Users },
-  { href: "/annual-report", label: "דוח שנתי", Icon: FileText },
-  { href: "/onboarding?edit=1", label: "פרטי העסק", Icon: Building2 },
+  { href: "/clients", labelKey: "more.clients", Icon: Users },
+  { href: "/annual-report", labelKey: "more.annualReport", Icon: FileText },
+  { href: "/onboarding?edit=1", labelKey: "more.businessDetails", Icon: Building2 },
 ];
 
 export default function MorePage() {
   const router = useRouter();
+  const { t } = useI18n();
   const { account } = useAccount();
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,22 +39,26 @@ export default function MorePage() {
       await signOut(auth);
       router.replace("/login");
     } catch {
-      setError("ההתנתקות נכשלה, נסה שוב");
+      setError(t("common.signOutFailed"));
       setSigningOut(false);
     }
   }
 
   return (
     <div className="px-4 pt-6">
-      <h1 className="text-2xl font-semibold">עוד</h1>
+      <h1 className="text-2xl font-semibold">{t("more.title")}</h1>
       <div className="mt-4 flex flex-col gap-3">
+        <div className="flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-border bg-white p-4">
+          <span className="font-medium">{t("more.language")}</span>
+          <LangToggle />
+        </div>
         {account && (
           <div className="rounded-2xl border border-border bg-white p-4">
-            <p className="text-sm text-foreground/60">מכסת AI החודש</p>
+            <p className="text-sm text-foreground/60">{t("more.aiQuotaThisMonth")}</p>
             <p className="mt-1 font-medium">
               <span dir="ltr">
                 {formatUsd(account.usage.aiCostUsd)} /{" "}
-                {account.aiBudgetUsd === null ? UNLIMITED_LABEL : formatUsd(account.aiBudgetUsd)}
+                {account.aiBudgetUsd === null ? t("common.unlimited") : formatUsd(account.aiBudgetUsd)}
               </span>
             </p>
           </div>
@@ -63,19 +69,19 @@ export default function MorePage() {
             className="flex min-h-12 items-center gap-3 rounded-2xl border border-border bg-white p-4 font-medium transition-transform duration-150 active:scale-[0.98]"
           >
             <Shield size={22} className="text-primary" aria-hidden />
-            <span className="flex-1 text-start">ניהול מערכת</span>
-            <ChevronLeft size={20} className="text-foreground/40" aria-hidden />
+            <span className="flex-1 text-start">{t("more.systemAdmin")}</span>
+            <ChevronLeft size={20} className="text-foreground/40 rtl:rotate-0 rotate-180" aria-hidden />
           </Link>
         )}
-        {LINKS.map(({ href, label, Icon }) => (
+        {LINKS.map(({ href, labelKey, Icon }) => (
           <Link
             key={href}
             href={href}
             className="flex min-h-12 items-center gap-3 rounded-2xl border border-border bg-white p-4 font-medium transition-transform duration-150 active:scale-[0.98]"
           >
             <Icon size={22} className="text-primary" aria-hidden />
-            <span className="flex-1 text-start">{label}</span>
-            <ChevronLeft size={20} className="text-foreground/40" aria-hidden />
+            <span className="flex-1 text-start">{t(labelKey)}</span>
+            <ChevronLeft size={20} className="text-foreground/40 rtl:rotate-0 rotate-180" aria-hidden />
           </Link>
         ))}
         <button
@@ -88,7 +94,7 @@ export default function MorePage() {
           ) : (
             <LogOut size={20} aria-hidden />
           )}
-          התנתקות
+          {t("common.signOut")}
         </button>
         {error && <p className="text-center text-sm text-destructive">{error}</p>}
       </div>

@@ -2,8 +2,9 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { api, ApiError } from "@/lib/apiClient";
+import { api } from "@/lib/apiClient";
 import { useBusiness } from "@/lib/business";
+import { useI18n } from "@/lib/i18n";
 import type { Business } from "@/lib/types";
 
 type FieldKey =
@@ -20,7 +21,7 @@ type FieldKey =
 
 type FieldDef = {
   key: FieldKey;
-  label: string;
+  labelKey: string;
   type: "text" | "tel" | "email";
   inputMode?: "numeric";
   ltr?: boolean;
@@ -28,48 +29,50 @@ type FieldDef = {
 };
 
 const FIELDS: FieldDef[] = [
-  { key: "businessName", label: "שם העסק", type: "text", autoComplete: "organization" },
-  { key: "ownerName", label: "שם בעל/ת העסק", type: "text", autoComplete: "name" },
-  { key: "businessIdNumber", label: "ת.ז / ע.מ (ספרות בלבד)", type: "text", inputMode: "numeric", ltr: true },
-  { key: "address", label: "כתובת", type: "text", autoComplete: "street-address" },
-  { key: "phone", label: "טלפון (רשות)", type: "tel", ltr: true, autoComplete: "tel" },
-  { key: "email", label: "אימייל (רשות)", type: "email", ltr: true, autoComplete: "email" },
-  { key: "bankName", label: "בנק (רשות)", type: "text" },
-  { key: "bankBranch", label: "סניף (רשות)", type: "text", inputMode: "numeric", ltr: true },
-  { key: "bankAccount", label: "מספר חשבון (רשות)", type: "text", inputMode: "numeric", ltr: true },
-  { key: "receiptPrefix", label: "קידומת מספרי קבלות", type: "text", inputMode: "numeric", ltr: true },
+  { key: "businessName", labelKey: "onboarding.field.businessName", type: "text", autoComplete: "organization" },
+  { key: "ownerName", labelKey: "onboarding.field.ownerName", type: "text", autoComplete: "name" },
+  { key: "businessIdNumber", labelKey: "onboarding.field.businessIdNumber", type: "text", inputMode: "numeric", ltr: true },
+  { key: "address", labelKey: "onboarding.field.address", type: "text", autoComplete: "street-address" },
+  { key: "phone", labelKey: "onboarding.field.phone", type: "tel", ltr: true, autoComplete: "tel" },
+  { key: "email", labelKey: "onboarding.field.email", type: "email", ltr: true, autoComplete: "email" },
+  { key: "bankName", labelKey: "onboarding.field.bankName", type: "text" },
+  { key: "bankBranch", labelKey: "onboarding.field.bankBranch", type: "text", inputMode: "numeric", ltr: true },
+  { key: "bankAccount", labelKey: "onboarding.field.bankAccount", type: "text", inputMode: "numeric", ltr: true },
+  { key: "receiptPrefix", labelKey: "onboarding.field.receiptPrefix", type: "text", inputMode: "numeric", ltr: true },
 ];
-
-function validateField(key: FieldKey, value: string): string | null {
-  switch (key) {
-    case "businessName":
-      return value.trim() ? null : "יש להזין שם עסק";
-    case "ownerName":
-      return value.trim() ? null : "יש להזין את שם בעל/ת העסק";
-    case "businessIdNumber":
-      return /^\d{5,9}$/.test(value) ? null : "יש להזין 5–9 ספרות בלבד";
-    case "address":
-      return value.trim() ? null : "יש להזין כתובת";
-    case "phone":
-      return null; // אופציונלי — השרת מקבל כל מחרוזת
-    case "email":
-      return !value || /^\S+@\S+\.\S+$/.test(value) ? null : "כתובת אימייל לא תקינה";
-    case "bankName":
-      return null; // אופציונלי
-    case "bankBranch":
-      return null; // אופציונלי
-    case "bankAccount":
-      return null; // אופציונלי
-    case "receiptPrefix":
-      return value.trim() && value.trim().length <= 10 ? null : "יש להזין קידומת של עד 10 תווים";
-  }
-}
 
 function OnboardingForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { business, refresh } = useBusiness();
+  const { t, tError } = useI18n();
   const editMode = searchParams.get("edit") === "1" && business !== null;
+
+  function validateField(key: FieldKey, value: string): string | null {
+    switch (key) {
+      case "businessName":
+        return value.trim() ? null : t("onboarding.error.businessNameRequired");
+      case "ownerName":
+        return value.trim() ? null : t("onboarding.error.ownerNameRequired");
+      case "businessIdNumber":
+        return /^\d{5,9}$/.test(value) ? null : t("onboarding.error.businessIdNumberInvalid");
+      case "address":
+        return value.trim() ? null : t("onboarding.error.addressRequired");
+      case "phone":
+        return null; // optional — the server accepts any string
+      case "email":
+        return !value || /^\S+@\S+\.\S+$/.test(value) ? null : t("onboarding.error.emailInvalid");
+      case "bankName":
+        return null; // optional
+      case "bankBranch":
+        return null; // optional
+      case "bankAccount":
+        return null; // optional
+      case "receiptPrefix":
+        return value.trim() && value.trim().length <= 10 ? null : t("onboarding.error.receiptPrefixInvalid");
+    }
+  }
+
   const [form, setForm] = useState<Record<FieldKey, string>>({
     businessName: "", ownerName: "", businessIdNumber: "", address: "",
     phone: "", email: "", bankName: "", bankBranch: "", bankAccount: "",
@@ -146,7 +149,7 @@ function OnboardingForm() {
         router.replace("/dashboard");
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "שגיאה לא צפויה, נסו שוב");
+      setError(tError(err));
     } finally {
       setSaving(false);
     }
@@ -154,19 +157,19 @@ function OnboardingForm() {
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-4 pt-6">
-      <h1 className="text-2xl font-bold">{editMode ? "פרטי העסק" : "הקמת פרופיל עסק"}</h1>
+      <h1 className="text-2xl font-bold">{editMode ? t("onboarding.editTitle") : t("onboarding.title")}</h1>
       {!editMode && (
         <p className="mt-1 text-sm text-foreground/60">
-          כמה פרטים על העסק — ואפשר להתחיל להפיק קבלות.
+          {t("onboarding.subtitle")}
         </p>
       )}
       <form onSubmit={submit} noValidate className="mt-6 flex flex-1 flex-col gap-4">
-        {FIELDS.map(({ key, label, type, inputMode, ltr, autoComplete }) => {
+        {FIELDS.map(({ key, labelKey, type, inputMode, ltr, autoComplete }) => {
           const immutable = editMode && key === "businessIdNumber";
           return (
             <div key={key}>
               <label htmlFor={key} className="mb-1 block text-sm font-medium">
-                {label}
+                {t(labelKey)}
               </label>
               <input
                 id={key}
@@ -184,7 +187,7 @@ function OnboardingForm() {
                 }`}
               />
               {immutable && (
-                <p className="mt-1 text-xs text-foreground/60">לא ניתן לשינוי</p>
+                <p className="mt-1 text-xs text-foreground/60">{t("onboarding.immutable")}</p>
               )}
               {fieldErrors[key] && (
                 <p className="mt-1 text-sm text-destructive">{fieldErrors[key]}</p>
@@ -200,7 +203,7 @@ function OnboardingForm() {
             className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 font-medium text-on-primary transition-transform duration-150 active:scale-[0.98] disabled:opacity-50"
           >
             {saving && <Loader2 size={20} className="animate-spin" aria-hidden />}
-            {saving ? "שומר..." : editMode ? "שמירת שינויים" : "צור עסק"}
+            {saving ? t("onboarding.saving") : editMode ? t("onboarding.saveChanges") : t("onboarding.create")}
           </button>
         </div>
       </form>

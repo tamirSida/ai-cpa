@@ -3,63 +3,54 @@
 import { useState } from "react";
 import { Check, Loader2, X } from "lucide-react";
 import { formatILS } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import type { ActionView } from "@/lib/types";
 
-const TITLES: Record<string, string> = {
-  CREATE_RECEIPT: "אישור יצירת קבלה",
-  CREATE_CONTACT: "אישור יצירת איש קשר",
-  CREATE_EXPENSE: "אישור הוספת הוצאה",
-  GENERATE_ANNUAL_REPORT: "אישור הפקת דוח שנתי",
+type T = ReturnType<typeof useT>;
+
+const TITLE_KEYS: Record<string, string> = {
+  CREATE_RECEIPT: "chat.titleCreateReceipt",
+  CREATE_CONTACT: "chat.titleCreateContact",
+  CREATE_EXPENSE: "chat.titleCreateExpense",
+  GENERATE_ANNUAL_REPORT: "chat.titleAnnualReport",
 };
 
-const PAYMENT_HE: Record<string, string> = {
-  cash: "מזומן",
-  bank_transfer: "העברה בנקאית",
-  bit: "ביט",
-  paybox: "פייבוקס",
-  credit_card: "כרטיס אשראי",
-  check: "צ'ק",
-  other: "אחר",
-  unknown: "לא צוין",
-};
-
-const CATEGORY_HE: Record<string, string> = {
-  software: "תוכנה",
-  equipment: "ציוד",
-  travel: "נסיעות",
-  office: "משרד",
-  marketing: "שיווק",
-  professional_services: "שירותים מקצועיים",
-  meals: "אוכל",
-  parking: "חניה",
-  other: "אחר",
+const PAYMENT_KEYS: Record<string, string> = {
+  cash: "chat.paymentCash",
+  bank_transfer: "chat.paymentBankTransfer",
+  bit: "chat.paymentBit",
+  paybox: "chat.paymentPaybox",
+  credit_card: "chat.paymentCreditCard",
+  check: "chat.paymentCheck",
+  other: "chat.paymentOther",
+  unknown: "chat.paymentUnknown",
 };
 
 type SummaryRow = { label: string; value: string; ltr?: boolean };
 
-function summaryRows(action: ActionView): SummaryRow[] {
+function summaryRows(action: ActionView, t: T): SummaryRow[] {
   const p = action.payload;
   const rows: SummaryRow[] = [];
   if (action.type === "CREATE_RECEIPT") {
-    if (typeof p.client_name === "string") rows.push({ label: "לקוח", value: p.client_name });
-    if (typeof p.amount === "number") rows.push({ label: "סכום", value: formatILS(p.amount), ltr: true });
-    if (typeof p.description === "string") rows.push({ label: "תיאור", value: p.description });
+    if (typeof p.client_name === "string") rows.push({ label: t("chat.fieldClient"), value: p.client_name });
+    if (typeof p.amount === "number") rows.push({ label: t("chat.fieldAmount"), value: formatILS(p.amount), ltr: true });
+    if (typeof p.description === "string") rows.push({ label: t("chat.fieldDescription"), value: p.description });
     const pm = typeof p.payment_method === "string" ? p.payment_method : "unknown";
-    rows.push({ label: "אמצעי תשלום", value: PAYMENT_HE[pm] ?? "לא צוין" });
+    rows.push({ label: t("chat.fieldPaymentMethod"), value: t(PAYMENT_KEYS[pm] ?? "chat.paymentUnknown") });
   } else if (action.type === "CREATE_CONTACT") {
-    if (typeof p.name === "string") rows.push({ label: "שם", value: p.name });
-    if (typeof p.phone === "string" && p.phone) rows.push({ label: "טלפון", value: p.phone, ltr: true });
-    if (typeof p.email === "string" && p.email) rows.push({ label: "אימייל", value: p.email, ltr: true });
+    if (typeof p.name === "string") rows.push({ label: t("chat.fieldName"), value: p.name });
+    if (typeof p.phone === "string" && p.phone) rows.push({ label: t("chat.fieldPhone"), value: p.phone, ltr: true });
+    if (typeof p.email === "string" && p.email) rows.push({ label: t("chat.fieldEmail"), value: p.email, ltr: true });
   } else if (action.type === "CREATE_EXPENSE") {
     if (typeof p.supplier_name === "string" && p.supplier_name)
-      rows.push({ label: "ספק", value: p.supplier_name });
-    if (typeof p.amount === "number") rows.push({ label: "סכום", value: formatILS(p.amount), ltr: true });
+      rows.push({ label: t("chat.fieldSupplier"), value: p.supplier_name });
+    if (typeof p.amount === "number") rows.push({ label: t("chat.fieldAmount"), value: formatILS(p.amount), ltr: true });
     if (typeof p.category === "string" && p.category)
-      rows.push({ label: "קטגוריה", value: CATEGORY_HE[p.category] ?? p.category });
+      rows.push({ label: t("chat.fieldCategory"), value: t(`category.${p.category}`) });
     if (typeof p.description === "string" && p.description)
-      rows.push({ label: "תיאור", value: p.description });
+      rows.push({ label: t("chat.fieldDescription"), value: p.description });
   } else if (action.type === "GENERATE_ANNUAL_REPORT") {
-    if (typeof p.year === "number") rows.push({ label: "שנה", value: String(p.year), ltr: true });
+    if (typeof p.year === "number") rows.push({ label: t("chat.fieldYear"), value: String(p.year), ltr: true });
   }
   return rows;
 }
@@ -71,6 +62,7 @@ type ConfirmActionCardProps = {
 };
 
 export default function ConfirmActionCard({ action, onConfirm, onCancel }: ConfirmActionCardProps) {
+  const t = useT();
   const [executing, setExecuting] = useState<"confirm" | "cancel" | null>(null);
 
   const run = async (kind: "confirm" | "cancel", fn: () => Promise<void>) => {
@@ -86,10 +78,10 @@ export default function ConfirmActionCard({ action, onConfirm, onCancel }: Confi
   return (
     <div className="me-auto w-full max-w-[85%] rounded-2xl border border-border bg-white p-4">
       <p className="mb-3 text-sm font-semibold text-foreground/70">
-        {TITLES[action.type] ?? "אישור פעולה"}
+        {t(TITLE_KEYS[action.type] ?? "chat.titleGeneric")}
       </p>
       <dl className="mb-4 space-y-2">
-        {summaryRows(action).map(({ label, value, ltr }) => (
+        {summaryRows(action, t).map(({ label, value, ltr }) => (
           <div key={label} className="flex items-baseline justify-between gap-3">
             <dt className="text-sm text-foreground/60">{label}</dt>
             <dd className={`font-medium ${ltr ? "tnum" : ""}`} dir={ltr ? "ltr" : undefined}>
@@ -109,7 +101,7 @@ export default function ConfirmActionCard({ action, onConfirm, onCancel }: Confi
           ) : (
             <Check size={18} aria-hidden />
           )}
-          אישור
+          {t("common.confirm")}
         </button>
         <button
           onClick={() => run("cancel", onCancel)}
@@ -121,7 +113,7 @@ export default function ConfirmActionCard({ action, onConfirm, onCancel }: Confi
           ) : (
             <X size={18} aria-hidden />
           )}
-          ביטול
+          {t("common.cancel")}
         </button>
       </div>
     </div>

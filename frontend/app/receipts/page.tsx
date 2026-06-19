@@ -7,8 +7,10 @@ import Sheet from "@/components/Sheet";
 import { api } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth";
 import { formatILS } from "@/lib/format";
+import { useI18n } from "@/lib/i18n";
 import type { Business, Client, PaymentMethod, Receipt } from "@/lib/types";
-import { PAYMENT_LABELS } from "@/lib/types";
+
+const PAYMENT_METHODS: PaymentMethod[] = ["cash", "bank_transfer", "bit", "paybox", "credit_card", "check", "other", "unknown"];
 
 const EMPTY_FORM = { clientId: "", clientName: "", amount: "", description: "", paymentMethod: "unknown" as PaymentMethod };
 
@@ -30,6 +32,7 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
 }
 
 export default function ReceiptsPage() {
+  const { t, tError } = useI18n();
   const { user, loading } = useAuth();
   const [business, setBusiness] = useState<Business | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
@@ -61,7 +64,7 @@ export default function ReceiptsPage() {
         setReceipts(rs);
         setLoaded(true);
       })
-      .catch((e) => setError((e as Error).message));
+      .catch((e) => setError(tError(e)));
   }, [loading, user]);
 
   function openCreate() {
@@ -83,9 +86,9 @@ export default function ReceiptsPage() {
     setFieldErrors((prev) => {
       const next = { ...prev };
       delete next[field];
-      if (field === "clientName" && !form.clientId && !form.clientName.trim()) next.clientName = "נדרש שם לקוח";
-      if (field === "amount" && !(Number(form.amount) > 0)) next.amount = "הסכום חייב להיות גדול מ-0";
-      if (field === "description" && !form.description.trim()) next.description = "חסר תיאור לקבלה";
+      if (field === "clientName" && !form.clientId && !form.clientName.trim()) next.clientName = t("receipts.errClientNameRequired");
+      if (field === "amount" && !(Number(form.amount) > 0)) next.amount = t("receipts.errAmountPositive");
+      if (field === "description" && !form.description.trim()) next.description = t("receipts.errDescriptionRequired");
       return next;
     });
   }
@@ -94,9 +97,9 @@ export default function ReceiptsPage() {
     e.preventDefault();
     if (!business) return;
     const errors: FieldErrors = {};
-    if (!form.clientId && !form.clientName.trim()) errors.clientName = "נדרש שם לקוח";
-    if (!(Number(form.amount) > 0)) errors.amount = "הסכום חייב להיות גדול מ-0";
-    if (!form.description.trim()) errors.description = "חסר תיאור לקבלה";
+    if (!form.clientId && !form.clientName.trim()) errors.clientName = t("receipts.errClientNameRequired");
+    if (!(Number(form.amount) > 0)) errors.amount = t("receipts.errAmountPositive");
+    if (!form.description.trim()) errors.description = t("receipts.errDescriptionRequired");
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
     setBusy(true);
@@ -116,7 +119,7 @@ export default function ReceiptsPage() {
       setReceipts((rs) => [issued, ...rs]);
       setCreateOpen(false);
     } catch (err) {
-      setCreateError((err as Error).message);
+      setCreateError(tError(err));
     } finally {
       setBusy(false);
     }
@@ -135,14 +138,14 @@ export default function ReceiptsPage() {
       setShareCopied(true);
       setTimeout(() => setShareCopied(false), 2000);
     } else {
-      window.prompt("העתק את הקישור:", receipt.pdfUrl);
+      window.prompt(t("receipts.copyLinkPrompt"), receipt.pdfUrl);
     }
   }
 
   async function confirmCancel() {
     if (!business || !selected) return;
     if (!cancelReason.trim()) {
-      setCancelError("נדרשת סיבת ביטול");
+      setCancelError(t("receipts.errCancelReasonRequired"));
       return;
     }
     setCancelBusy(true);
@@ -156,7 +159,7 @@ export default function ReceiptsPage() {
       setSelected(cancelled);
       setCancelMode(false);
     } catch (err) {
-      setCancelError((err as Error).message);
+      setCancelError(tError(err));
     } finally {
       setCancelBusy(false);
     }
@@ -165,13 +168,13 @@ export default function ReceiptsPage() {
   return (
     <div className="px-4 py-6">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">קבלות</h1>
+        <h1 className="text-2xl font-bold">{t("receipts.title")}</h1>
         <button
           onClick={openCreate}
           className="flex min-h-12 items-center gap-1.5 rounded-xl bg-primary px-5 font-medium text-on-primary transition-transform duration-150 active:scale-[0.98]"
         >
           <Plus size={20} aria-hidden />
-          קבלה חדשה
+          {t("receipts.newReceipt")}
         </button>
       </div>
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
@@ -188,24 +191,24 @@ export default function ReceiptsPage() {
       ) : receipts.length === 0 ? (
         <EmptyState
           Icon={ReceiptText}
-          title="אין עדיין קבלות"
-          hint="הנפיקו קבלה ראשונה בכפתור למעלה, או כתבו בצ׳אט: קיבלתי 2,800 מנועה על עיצוב לוגו"
+          title={t("receipts.emptyTitle")}
+          hint={t("receipts.emptyHint")}
         />
       ) : (
         <ReceiptList receipts={receipts} onSelect={openDetails} />
       )}
 
-      <Sheet open={createOpen} onClose={() => setCreateOpen(false)} title="קבלה חדשה">
+      <Sheet open={createOpen} onClose={() => setCreateOpen(false)} title={t("receipts.newReceipt")}>
         <form onSubmit={createAndIssue} noValidate className="flex flex-col gap-4">
           <div>
-            <label htmlFor="receipt-client" className="mb-1 block text-sm font-medium">לקוח</label>
+            <label htmlFor="receipt-client" className="mb-1 block text-sm font-medium">{t("receipts.clientLabel")}</label>
             <select
               id="receipt-client"
               value={form.clientId}
               onChange={(e) => setForm({ ...form, clientId: e.target.value })}
               className={inputClass(false)}
             >
-              <option value="">אחר (שם חופשי)</option>
+              <option value="">{t("receipts.clientFreeText")}</option>
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
@@ -213,7 +216,7 @@ export default function ReceiptsPage() {
           </div>
           {!form.clientId && (
             <div>
-              <label htmlFor="receipt-client-name" className="mb-1 block text-sm font-medium">שם הלקוח *</label>
+              <label htmlFor="receipt-client-name" className="mb-1 block text-sm font-medium">{t("receipts.clientNameLabel")}</label>
               <input
                 id="receipt-client-name"
                 value={form.clientName}
@@ -226,7 +229,7 @@ export default function ReceiptsPage() {
             </div>
           )}
           <div>
-            <label htmlFor="receipt-amount" className="mb-1 block text-sm font-medium">סכום בש״ח *</label>
+            <label htmlFor="receipt-amount" className="mb-1 block text-sm font-medium">{t("receipts.amountLabel")}</label>
             <input
               id="receipt-amount"
               type="number"
@@ -243,7 +246,7 @@ export default function ReceiptsPage() {
             {fieldErrors.amount && <p className="mt-1 text-sm text-destructive">{fieldErrors.amount}</p>}
           </div>
           <div>
-            <label htmlFor="receipt-description" className="mb-1 block text-sm font-medium">תיאור *</label>
+            <label htmlFor="receipt-description" className="mb-1 block text-sm font-medium">{t("receipts.descriptionLabel")}</label>
             <input
               id="receipt-description"
               value={form.description}
@@ -255,15 +258,15 @@ export default function ReceiptsPage() {
             {fieldErrors.description && <p className="mt-1 text-sm text-destructive">{fieldErrors.description}</p>}
           </div>
           <div>
-            <label htmlFor="receipt-method" className="mb-1 block text-sm font-medium">אמצעי תשלום</label>
+            <label htmlFor="receipt-method" className="mb-1 block text-sm font-medium">{t("receipts.paymentMethodLabel")}</label>
             <select
               id="receipt-method"
               value={form.paymentMethod}
               onChange={(e) => setForm({ ...form, paymentMethod: e.target.value as PaymentMethod })}
               className={inputClass(false)}
             >
-              {(Object.entries(PAYMENT_LABELS) as [PaymentMethod, string][]).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
+              {PAYMENT_METHODS.map((value) => (
+                <option key={value} value={value}>{t(`receipts.payment.${value}`)}</option>
               ))}
             </select>
           </div>
@@ -274,29 +277,29 @@ export default function ReceiptsPage() {
             className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 font-medium text-on-primary transition-transform duration-150 active:scale-[0.98] disabled:opacity-50"
           >
             {busy && <Loader2 size={20} className="animate-spin" aria-hidden />}
-            צור והנפק קבלה
+            {t("receipts.createAndIssue")}
           </button>
         </form>
       </Sheet>
 
-      <Sheet open={selected !== null} onClose={() => setSelected(null)} title="פרטי קבלה">
+      <Sheet open={selected !== null} onClose={() => setSelected(null)} title={t("receipts.detailsTitle")}>
         {selected && (
           <div className="flex flex-col gap-4">
             <dl>
-              <DetailRow label="מספר קבלה"><span className="tnum" dir="ltr">{selected.receiptNumber ?? "—"}</span></DetailRow>
-              <DetailRow label="סטטוס"><ReceiptStatusBadge status={selected.status} /></DetailRow>
-              <DetailRow label="לקוח">{selected.clientSnapshot.name}</DetailRow>
-              <DetailRow label="תאריך"><span dir="ltr">{selected.issueDate}</span></DetailRow>
-              <DetailRow label="סכום"><span className="tnum" dir="ltr">{formatILS(selected.amount)}</span></DetailRow>
-              <DetailRow label="אמצעי תשלום">{PAYMENT_LABELS[selected.paymentMethod]}</DetailRow>
+              <DetailRow label={t("receipts.detailNumber")}><span className="tnum" dir="ltr">{selected.receiptNumber ?? "—"}</span></DetailRow>
+              <DetailRow label={t("receipts.detailStatus")}><ReceiptStatusBadge status={selected.status} /></DetailRow>
+              <DetailRow label={t("receipts.detailClient")}>{selected.clientSnapshot.name}</DetailRow>
+              <DetailRow label={t("receipts.detailDate")}><span dir="ltr">{selected.issueDate}</span></DetailRow>
+              <DetailRow label={t("receipts.detailAmount")}><span className="tnum" dir="ltr">{formatILS(selected.amount)}</span></DetailRow>
+              <DetailRow label={t("receipts.detailPaymentMethod")}>{t(`receipts.payment.${selected.paymentMethod}`)}</DetailRow>
               {selected.checkDetails && (
-                <DetailRow label="פרטי המחאה">
-                  {selected.checkDetails.bank} · מס׳ <span dir="ltr" className="tnum">{selected.checkDetails.number}</span> · סניף <span dir="ltr" className="tnum">{selected.checkDetails.branch}</span> · פירעון <span dir="ltr" className="tnum">{selected.checkDetails.dueDate}</span>
+                <DetailRow label={t("receipts.detailCheckDetails")}>
+                  {selected.checkDetails.bank} · {t("receipts.checkNumber")} <span dir="ltr" className="tnum">{selected.checkDetails.number}</span> · {t("receipts.checkBranch")} <span dir="ltr" className="tnum">{selected.checkDetails.branch}</span> · {t("receipts.checkDueDate")} <span dir="ltr" className="tnum">{selected.checkDetails.dueDate}</span>
                 </DetailRow>
               )}
-              <DetailRow label="תיאור">{selected.description}</DetailRow>
+              <DetailRow label={t("receipts.detailDescription")}>{selected.description}</DetailRow>
               {selected.status === "cancelled" && selected.cancellationReason && (
-                <DetailRow label="סיבת ביטול">{selected.cancellationReason}</DetailRow>
+                <DetailRow label={t("receipts.detailCancellationReason")}>{selected.cancellationReason}</DetailRow>
               )}
             </dl>
             {!cancelMode ? (
@@ -310,18 +313,18 @@ export default function ReceiptsPage() {
                       className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 font-medium text-on-primary transition-transform duration-150 active:scale-[0.98]"
                     >
                       <Download size={20} aria-hidden />
-                      הורדת PDF
+                      {t("receipts.downloadPdf")}
                     </a>
                     <button
                       onClick={() => void shareReceipt(selected)}
                       className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-border px-5 font-medium text-foreground transition-transform duration-150 active:scale-[0.98]"
                     >
                       {shareCopied ? <Check size={20} aria-hidden /> : <Share2 size={20} aria-hidden />}
-                      {shareCopied ? "הקישור הועתק" : "שיתוף"}
+                      {shareCopied ? t("receipts.linkCopied") : t("receipts.share")}
                     </button>
                   </>
                 ) : (
-                  <p className="text-sm text-foreground/60">אין עדיין PDF לקבלה זו.</p>
+                  <p className="text-sm text-foreground/60">{t("receipts.noPdf")}</p>
                 )}
                 {selected.status === "issued" && (
                   <button
@@ -329,17 +332,17 @@ export default function ReceiptsPage() {
                     className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-destructive px-5 font-medium text-destructive transition-transform duration-150 active:scale-[0.98]"
                   >
                     <Ban size={20} aria-hidden />
-                    ביטול קבלה
+                    {t("receipts.cancelReceipt")}
                   </button>
                 )}
               </div>
             ) : (
               <div className="flex flex-col gap-3 rounded-2xl border border-destructive/40 bg-destructive/5 p-4">
                 <p className="text-sm font-medium text-destructive">
-                  ביטול קבלה הוא סופי ונרשם ביומן הפעולות. הקבלה תסומן כמבוטלת ולא תימחק.
+                  {t("receipts.cancelWarning")}
                 </p>
                 <div>
-                  <label htmlFor="cancel-reason" className="mb-1 block text-sm font-medium">סיבת הביטול *</label>
+                  <label htmlFor="cancel-reason" className="mb-1 block text-sm font-medium">{t("receipts.cancelReasonLabel")}</label>
                   <input
                     id="cancel-reason"
                     value={cancelReason}
@@ -348,7 +351,7 @@ export default function ReceiptsPage() {
                       setCancelReason(e.target.value);
                       if (cancelError) setCancelError(null);
                     }}
-                    onBlur={() => setCancelError(cancelReason.trim() ? null : "נדרשת סיבת ביטול")}
+                    onBlur={() => setCancelError(cancelReason.trim() ? null : t("receipts.errCancelReasonRequired"))}
                     className={inputClass(Boolean(cancelError))}
                   />
                   {cancelError && <p className="mt-1 text-sm text-destructive">{cancelError}</p>}
@@ -360,14 +363,14 @@ export default function ReceiptsPage() {
                     className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-destructive px-5 font-medium text-white transition-transform duration-150 active:scale-[0.98] disabled:opacity-50"
                   >
                     {cancelBusy && <Loader2 size={20} className="animate-spin" aria-hidden />}
-                    אישור ביטול
+                    {t("receipts.confirmCancel")}
                   </button>
                   <button
                     onClick={() => setCancelMode(false)}
                     disabled={cancelBusy}
                     className="min-h-12 flex-1 rounded-xl border border-border px-5 font-medium text-foreground transition-transform duration-150 active:scale-[0.98] disabled:opacity-50"
                   >
-                    חזרה
+                    {t("common.back")}
                   </button>
                 </div>
               </div>

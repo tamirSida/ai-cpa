@@ -3,7 +3,7 @@
 import { Wallet } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import { formatILS } from "@/lib/format";
-import { CATEGORY_LABELS, EXPENSE_STATUS_LABELS } from "@/lib/labels";
+import { useI18n } from "@/lib/i18n";
 import type { Expense, ExpenseStatus } from "@/lib/types";
 
 const STATUS_BADGE: Record<ExpenseStatus, string> = {
@@ -12,12 +12,13 @@ const STATUS_BADGE: Record<ExpenseStatus, string> = {
   rejected: "bg-destructive/10 text-destructive",
 };
 
-function formatDate(iso: string): string {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString("he-IL");
+function formatDate(iso: string, lang: "en" | "he"): string {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString(lang === "he" ? "he-IL" : "en-GB");
 }
 
 export default function ExpenseList({ expenses, loading, onSelect }:
   { expenses: Expense[]; loading: boolean; onSelect: (e: Expense) => void }) {
+  const { t, lang } = useI18n();
   if (loading) {
     return (
       <div className="flex flex-col gap-3" aria-hidden>
@@ -37,8 +38,8 @@ export default function ExpenseList({ expenses, loading, onSelect }:
     return (
       <EmptyState
         Icon={Wallet}
-        title="אין הוצאות להצגה"
-        hint="צלמו קבלה למעלה או כתבו בצ'אט: תוסיף הוצאה של 120 שקל על Canva"
+        title={t("expenses.emptyTitle")}
+        hint={t("expenses.emptyHint")}
       />
     );
   }
@@ -60,20 +61,20 @@ export default function ExpenseList({ expenses, loading, onSelect }:
               )}
               <span className="min-w-0 flex-1">
                 <span className="flex items-center justify-between gap-2">
-                  <span className="truncate font-medium">{e.supplierName ?? "ספק לא ידוע"}</span>
+                  <span className="truncate font-medium">{e.supplierName ?? t("expenses.unknownSupplier")}</span>
                   <span className="tnum shrink-0 font-semibold" dir="ltr">
                     {e.amount !== null ? formatILS(e.amount) : "—"}
                   </span>
                 </span>
                 <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-foreground/60">
                   <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_BADGE[e.status]}`}>
-                    {EXPENSE_STATUS_LABELS[e.status]}
+                    {t(`expenseStatus.${e.status}`)}
                   </span>
-                  <span>{e.category ? CATEGORY_LABELS[e.category] : "ללא קטגוריה"}</span>
-                  {e.expenseDate && <span className="tnum" dir="ltr">{formatDate(e.expenseDate)}</span>}
+                  <span>{e.category ? t(`category.${e.category}`) : t("expenses.noCategory")}</span>
+                  {e.expenseDate && <span className="tnum" dir="ltr">{formatDate(e.expenseDate, lang)}</span>}
                 </span>
                 {e.extractionConfidence !== null && e.extractionConfidence < 0.7 && (
-                  <span className="mt-1 block text-xs text-destructive">זיהוי בביטחון נמוך — כדאי לבדוק את הפרטים</span>
+                  <span className="mt-1 block text-xs text-destructive">{t("expenses.lowConfidence")}</span>
                 )}
               </span>
             </button>
@@ -84,11 +85,11 @@ export default function ExpenseList({ expenses, loading, onSelect }:
         <table className="w-full text-sm">
           <thead className="border-b border-border bg-muted/50">
             <tr>
-              <th className="p-3 text-start font-medium">תאריך</th>
-              <th className="p-3 text-start font-medium">ספק</th>
-              <th className="p-3 text-start font-medium">קטגוריה</th>
-              <th className="p-3 text-start font-medium">סכום</th>
-              <th className="p-3 text-start font-medium">סטטוס</th>
+              <th className="p-3 text-start font-medium">{t("expenses.colDate")}</th>
+              <th className="p-3 text-start font-medium">{t("expenses.colSupplier")}</th>
+              <th className="p-3 text-start font-medium">{t("expenses.colCategory")}</th>
+              <th className="p-3 text-start font-medium">{t("expenses.colAmount")}</th>
+              <th className="p-3 text-start font-medium">{t("expenses.colStatus")}</th>
             </tr>
           </thead>
           <tbody>
@@ -99,21 +100,21 @@ export default function ExpenseList({ expenses, loading, onSelect }:
                 className="cursor-pointer border-b border-border last:border-b-0 hover:bg-muted/50"
               >
                 <td className="p-3">
-                  <span className="tnum" dir="ltr">{e.expenseDate ? formatDate(e.expenseDate) : "—"}</span>
+                  <span className="tnum" dir="ltr">{e.expenseDate ? formatDate(e.expenseDate, lang) : "—"}</span>
                 </td>
                 <td className="p-3">
                   <span className="flex items-center gap-2">
                     {e.imageUrl && <img src={e.imageUrl} alt="" className="size-8 rounded object-cover" />}
-                    {e.supplierName ?? "ספק לא ידוע"}
+                    {e.supplierName ?? t("expenses.unknownSupplier")}
                   </span>
                 </td>
-                <td className="p-3">{e.category ? CATEGORY_LABELS[e.category] : "—"}</td>
+                <td className="p-3">{e.category ? t(`category.${e.category}`) : "—"}</td>
                 <td className="p-3">
                   <span className="tnum" dir="ltr">{e.amount !== null ? formatILS(e.amount) : "—"}</span>
                 </td>
                 <td className="p-3">
                   <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_BADGE[e.status]}`}>
-                    {EXPENSE_STATUS_LABELS[e.status]}
+                    {t(`expenseStatus.${e.status}`)}
                   </span>
                 </td>
               </tr>

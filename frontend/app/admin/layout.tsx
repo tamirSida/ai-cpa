@@ -3,12 +3,13 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { useAccount } from "@/lib/account";
+import { useI18n } from "@/lib/i18n";
 
 const TABS = [
-  { href: "/admin", label: "משתמשים" },
-  { href: "/admin/invites", label: "הזמנות" },
+  { href: "/admin", labelKey: "admin.tabUsers" },
+  { href: "/admin/invites", labelKey: "admin.tabInvites" },
 ];
 
 function Splash() {
@@ -21,8 +22,10 @@ function Splash() {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { account, loading } = useAccount();
+  const { t, lang } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
+  const BackArrow = lang === "he" ? ArrowRight : ArrowLeft;
 
   useEffect(() => {
     if (!loading && account && account.role !== "admin") router.replace("/chat");
@@ -37,24 +40,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="flex items-center gap-2">
           <Link
             href="/more"
-            aria-label="חזרה"
+            aria-label={t("admin.back")}
             className="flex min-h-12 min-w-12 items-center justify-center -ms-3 rounded-xl text-foreground/55 transition-transform duration-150 active:scale-[0.96]"
           >
-            <ArrowRight size={22} aria-hidden />
+            <BackArrow size={22} aria-hidden />
           </Link>
-          <h1 className="text-lg font-semibold">ניהול מערכת</h1>
+          <h1 className="text-lg font-semibold">{t("admin.title")}</h1>
         </div>
         <div
           role="tablist"
-          aria-label="ניהול מערכת"
+          aria-label={t("admin.title")}
           className="mt-4 flex rounded-xl border border-border bg-muted p-1"
         >
-          {TABS.map((t) => {
-            const active = pathname === t.href;
+          {TABS.map((tab) => {
+            const active = pathname === tab.href;
             return (
               <Link
-                key={t.href}
-                href={t.href}
+                key={tab.href}
+                href={tab.href}
                 role="tab"
                 aria-selected={active}
                 className={`flex min-h-12 flex-1 items-center justify-center rounded-lg text-sm transition-colors ${
@@ -63,7 +66,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     : "text-foreground/55"
                 }`}
               >
-                {t.label}
+                {t(tab.labelKey)}
               </Link>
             );
           })}
