@@ -9,21 +9,24 @@ import {
   ReceiptText,
   Wallet,
 } from "lucide-react";
+import { useT } from "@/lib/i18n";
+import type { MsgKey } from "@/lib/messages";
 
-const ITEMS = [
-  { href: "/chat", label: "צ'אט", Icon: MessageCircle },
-  { href: "/dashboard", label: "סקירה", Icon: LayoutDashboard },
-  { href: "/receipts", label: "קבלות", Icon: ReceiptText },
-  { href: "/expenses", label: "הוצאות", Icon: Wallet },
-  { href: "/more", label: "עוד", Icon: Menu },
+const ITEMS: { href: string; labelKey: MsgKey; Icon: typeof MessageCircle }[] = [
+  { href: "/chat", labelKey: "nav.chat", Icon: MessageCircle },
+  { href: "/dashboard", labelKey: "nav.dashboard", Icon: LayoutDashboard },
+  { href: "/receipts", labelKey: "nav.receipts", Icon: ReceiptText },
+  { href: "/expenses", labelKey: "nav.expenses", Icon: Wallet },
+  { href: "/more", labelKey: "nav.more", Icon: Menu },
 ];
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const t = useT();
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-white pb-safe">
       <div className="mx-auto flex h-16 max-w-lg md:max-w-3xl">
-        {ITEMS.map(({ href, label, Icon }) => {
+        {ITEMS.map(({ href, labelKey, Icon }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);
           return (
             <Link
@@ -35,7 +38,7 @@ export default function BottomNav() {
               }`}
             >
               <Icon size={24} strokeWidth={active ? 2.4 : 2} aria-hidden />
-              {label}
+              {t(labelKey)}
             </Link>
           );
         })}

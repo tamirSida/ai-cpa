@@ -12,9 +12,10 @@ import {
   RotateCw,
   TriangleAlert,
 } from "lucide-react";
-import { api, apiBlob, ApiError } from "@/lib/apiClient";
+import { api, apiBlob } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth";
 import { useBusiness } from "@/lib/business";
+import { useI18n } from "@/lib/i18n";
 import { formatILS } from "@/lib/format";
 import type { PrecheckResult } from "@/lib/types";
 
@@ -27,14 +28,16 @@ type CheckKey =
   | "missingBusinessFields"
   | "receiptsMissingPayerAddress";
 
-const CHECKS: { key: CheckKey; label: string; fixHref: string; fixLabel: string }[] = [
-  { key: "expensesNeedingReview", label: "הוצאות שדורשות בדיקה", fixHref: "/expenses", fixLabel: "מעבר להוצאות" },
-  { key: "expensesMissingImages", label: "הוצאות ללא קבלה מצולמת", fixHref: "/expenses", fixLabel: "מעבר להוצאות" },
-  { key: "uncategorizedExpenses", label: "הוצאות ללא קטגוריה", fixHref: "/expenses", fixLabel: "מעבר להוצאות" },
-  { key: "receiptsMissingPdf", label: "קבלות ללא PDF", fixHref: "/receipts", fixLabel: "מעבר לקבלות" },
-  { key: "cancelledReceipts", label: "קבלות מבוטלות", fixHref: "/receipts", fixLabel: "מעבר לקבלות" },
-  { key: "missingBusinessFields", label: "פרטי עסק חסרים", fixHref: "/dashboard", fixLabel: "מעבר לפרטי העסק" },
-  { key: "receiptsMissingPayerAddress", label: "קבלות ללא כתובת לקוח", fixHref: "/receipts", fixLabel: "מעבר לקבלות" },
+// `labelKey`/`fixLabelKey` are i18n keys resolved with t() at render time — this array is
+// module-level so it can't call the hook directly.
+const CHECKS: { key: CheckKey; labelKey: string; fixHref: string; fixLabelKey: string }[] = [
+  { key: "expensesNeedingReview", labelKey: "annual.check.expensesNeedingReview", fixHref: "/expenses", fixLabelKey: "annual.fix.expenses" },
+  { key: "expensesMissingImages", labelKey: "annual.check.expensesMissingImages", fixHref: "/expenses", fixLabelKey: "annual.fix.expenses" },
+  { key: "uncategorizedExpenses", labelKey: "annual.check.uncategorizedExpenses", fixHref: "/expenses", fixLabelKey: "annual.fix.expenses" },
+  { key: "receiptsMissingPdf", labelKey: "annual.check.receiptsMissingPdf", fixHref: "/receipts", fixLabelKey: "annual.fix.receipts" },
+  { key: "cancelledReceipts", labelKey: "annual.check.cancelledReceipts", fixHref: "/receipts", fixLabelKey: "annual.fix.receipts" },
+  { key: "missingBusinessFields", labelKey: "annual.check.missingBusinessFields", fixHref: "/dashboard", fixLabelKey: "annual.fix.business" },
+  { key: "receiptsMissingPayerAddress", labelKey: "annual.check.receiptsMissingPayerAddress", fixHref: "/receipts", fixLabelKey: "annual.fix.receipts" },
 ];
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -54,6 +57,7 @@ function SkeletonCard() {
 }
 
 export default function AnnualReportPage() {
+  const { t, tError } = useI18n();
   const { user, loading } = useAuth();
   // Consume the always-mounted BusinessProvider instead of re-fetching /businesses/me here:
   // a local fetch that fails would leave `business` null forever and trap the page on the skeleton.
@@ -96,7 +100,7 @@ export default function AnnualReportPage() {
       if (precheckReq.current === reqId) setPrecheck(result);
     } catch (e) {
       if (precheckReq.current === reqId) {
-        setError(e instanceof ApiError ? e.message : "הבדיקה נכשלה, נסו שוב");
+        setError(tError(e));
       }
     } finally {
       if (precheckReq.current === reqId) setPrechecking(false);
@@ -124,7 +128,7 @@ export default function AnnualReportPage() {
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       setDownloadedYear(requestedYear);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "הפקת הדוח נכשלה, נסו שוב");
+      setError(tError(e));
     } finally {
       setGenerating(false);
     }
@@ -132,7 +136,7 @@ export default function AnnualReportPage() {
 
   if (loading || bizLoading) {
     return (
-      <div className="space-y-3 px-4 py-6" aria-busy="true" aria-label="טוען דף דוח שנתי">
+      <div className="space-y-3 px-4 py-6" aria-busy="true" aria-label={t("annual.loadingPage")}>
         <div className="h-8 w-36 animate-pulse rounded-lg bg-border" />
         <SkeletonCard />
         <SkeletonCard />
@@ -151,8 +155,8 @@ export default function AnnualReportPage() {
         >
           <TriangleAlert size={20} className="mt-0.5 shrink-0 text-destructive" aria-hidden />
           <div className="min-w-0">
-            <p className="font-medium text-destructive">טעינת פרטי העסק נכשלה</p>
-            <p className="mt-1 text-sm text-foreground/60">בדקו את החיבור לאינטרנט ונסו שוב.</p>
+            <p className="font-medium text-destructive">{t("annual.bizLoadFailed")}</p>
+            <p className="mt-1 text-sm text-foreground/60">{t("annual.bizLoadFailedHint")}</p>
           </div>
         </div>
         <button
@@ -161,7 +165,7 @@ export default function AnnualReportPage() {
           className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 font-medium text-on-primary transition-transform duration-150 active:scale-[0.98] ${FOCUS_RING}`}
         >
           <RotateCw size={20} aria-hidden />
-          נסו שוב
+          {t("annual.retry")}
         </button>
       </div>
     );
@@ -175,15 +179,15 @@ export default function AnnualReportPage() {
   return (
     <div className="space-y-4 px-4 py-6">
       <header>
-        <h1 className="text-2xl font-semibold">דוח שנתי</h1>
+        <h1 className="text-2xl font-semibold">{t("annual.title")}</h1>
         <p className="mt-1 text-sm text-foreground/60">
-          חבילה מוכנה לרואה החשבון: קבצי CSV, סיכום PDF וכל הקבלות וההוצאות.
+          {t("annual.subtitle")}
         </p>
       </header>
 
       <section className="rounded-2xl border border-border bg-white p-4">
-        <p className="text-sm font-medium">שנת הדוח</p>
-        <div className="mt-2 flex rounded-xl bg-muted p-1" role="group" aria-label="בחירת שנה">
+        <p className="text-sm font-medium">{t("annual.reportYear")}</p>
+        <div className="mt-2 flex rounded-xl bg-muted p-1" role="group" aria-label={t("annual.selectYear")}>
           {YEARS.map((y) => (
             <button
               key={y}
@@ -191,7 +195,7 @@ export default function AnnualReportPage() {
               onClick={() => selectYear(y)}
               disabled={busy}
               aria-pressed={y === year}
-              aria-label={`שנת ${y}`}
+              aria-label={t("annual.yearLabel", { year: y })}
               className={`min-h-12 flex-1 rounded-lg text-base font-medium transition-transform duration-150 active:scale-[0.98] disabled:opacity-50 ${FOCUS_RING} ${
                 y === year ? "bg-white text-foreground shadow-sm" : "text-foreground/60"
               }`}
@@ -213,7 +217,7 @@ export default function AnnualReportPage() {
         ) : (
           <ClipboardCheck size={20} aria-hidden />
         )}
-        בדיקה מקדימה
+        {t("annual.runPrecheck")}
       </button>
 
       {/* Always-mounted live region: AT only announces changes to a region present at mount. */}
@@ -222,7 +226,7 @@ export default function AnnualReportPage() {
           <section className="space-y-3">
             <div className="rounded-2xl border border-border bg-white p-4">
               <p className="text-sm text-foreground/60">
-                סך הכנסות לשנת <span dir="ltr" className="tnum">{precheck.year}</span>
+                {t("annual.totalRevenueForYear")} <span dir="ltr" className="tnum">{precheck.year}</span>
               </p>
               <p className="mt-1 text-2xl font-semibold tnum" dir="ltr">
                 {formatILS(precheck.totalRevenue)}
@@ -234,7 +238,7 @@ export default function AnnualReportPage() {
                 <TriangleAlert size={20} className="mt-0.5 shrink-0 text-destructive" aria-hidden />
                 <p className="text-sm font-medium text-destructive">
                   {/* the limit itself comes from the backend config (ANNUAL_LIMIT_ILS) — don't hardcode it here */}
-                  ההכנסות מתקרבות לתקרת עוסק פטור. מומלץ להתייעץ עם רואה חשבון.
+                  {t("annual.thresholdWarning")}
                 </p>
               </div>
             )}
@@ -243,8 +247,8 @@ export default function AnnualReportPage() {
               <div className="flex items-start gap-3 rounded-2xl border border-accent/40 bg-accent/5 p-4">
                 <CircleCheck size={24} className="shrink-0 text-accent" aria-hidden />
                 <div>
-                  <p className="font-medium">הכל מוכן להפקה</p>
-                  <p className="mt-1 text-sm text-foreground/60">לא נמצאו פריטים חסרים לשנה זו.</p>
+                  <p className="font-medium">{t("annual.allReady")}</p>
+                  <p className="mt-1 text-sm text-foreground/60">{t("annual.noMissingItems")}</p>
                 </div>
               </div>
             ) : (
@@ -256,13 +260,13 @@ export default function AnnualReportPage() {
                   <TriangleAlert size={20} className="mt-0.5 shrink-0 text-amber-600" aria-hidden />
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-amber-900">
-                      {c.label} <span dir="ltr" className="tnum">({c.count})</span>
+                      {t(c.labelKey)} <span dir="ltr" className="tnum">({c.count})</span>
                     </p>
                     <Link
                       href={c.fixHref}
                       className={`mt-1 inline-flex min-h-12 items-center rounded text-sm font-medium text-primary ${FOCUS_RING}`}
                     >
-                      {c.fixLabel}
+                      {t(c.fixLabelKey)}
                     </Link>
                   </div>
                 </div>
@@ -284,22 +288,22 @@ export default function AnnualReportPage() {
           ) : (
             <FileDown size={20} aria-hidden />
           )}
-          {generating ? "מכין את הדוח..." : "צור דוח שנתי"}
+          {generating ? t("annual.preparing") : t("annual.generate")}
         </button>
         <div aria-live="polite">
           {generating && (
             <p className="text-center text-sm text-foreground/60">
-              אוספים קבלות, הוצאות וקבצים לחבילה — זה יכול לקחת עד דקה.
+              {t("annual.collecting")}
             </p>
           )}
         </div>
         {!precheck && (
           <p className="text-center text-xs text-foreground/60">
-            יש להריץ בדיקה מקדימה לפני הפקת הדוח.
+            {t("annual.runPrecheckFirst")}
           </p>
         )}
         <p className="text-center text-xs text-foreground/60">
-          באייפון קובץ ה־ZIP נשמר באפליקציית ״קבצים״ (Files) תחת ״הורדות״.
+          {t("annual.iosHint")}
         </p>
         {error && (
           <p className="text-center text-sm text-destructive" role="alert">
@@ -313,10 +317,11 @@ export default function AnnualReportPage() {
           <div className="flex items-start gap-3 rounded-2xl border border-accent/40 bg-accent/5 p-4">
             <CircleCheck size={24} className="shrink-0 text-accent" aria-hidden />
             <div className="min-w-0">
-              <p className="font-medium">הדוח הופק והורד</p>
+              <p className="font-medium">{t("annual.downloadedTitle")}</p>
               <p className="mt-1 text-sm text-foreground/60">
-                הקובץ <span dir="ltr" className="tnum">annual_report_{downloadedYear}.zip</span> ירד למכשיר —
-                אפשר לשלוח אותו לרואה החשבון.
+                {t("annual.downloadedFilePrefix")}{" "}
+                <span dir="ltr" className="tnum">annual_report_{downloadedYear}.zip</span>{" "}
+                {t("annual.downloadedFileSuffix")}
               </p>
             </div>
           </div>

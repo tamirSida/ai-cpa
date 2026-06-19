@@ -6,10 +6,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAccount } from "@/lib/account";
 import { auth } from "@/lib/firebase";
+import { useT } from "@/lib/i18n";
 
 export default function PendingPage() {
   const router = useRouter();
   const account = useAccount();
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +38,7 @@ export default function PendingPage() {
       await signOut(auth);
       router.replace("/login");
     } catch {
-      setError("ההתנתקות נכשלה, נסה שוב");
+      setError(t("common.signOutFailed"));
       setSigningOut(false);
     }
   }
@@ -45,12 +47,8 @@ export default function PendingPage() {
     <main className="flex min-h-dvh flex-col items-center justify-center px-6">
       <div className="w-full max-w-sm rounded-2xl border border-border bg-white p-6 text-center">
         <Clock size={56} className="mx-auto text-foreground/30" aria-hidden />
-        <h1 className="mt-4 text-xl font-semibold">ממתין לאישור</h1>
-        <p className="mt-2 text-sm text-foreground/60">
-          {
-            "החשבון שלך נוצר ונמצא בהמתנה לאישור מנהל. ברגע שהחשבון יאושר תקבל גישה מלאה למערכת."
-          }
-        </p>
+        <h1 className="mt-4 text-xl font-semibold">{t("pending.title")}</h1>
+        <p className="mt-2 text-sm text-foreground/60">{t("pending.body")}</p>
         <button
           onClick={handleRefresh}
           disabled={busy}
@@ -61,7 +59,7 @@ export default function PendingPage() {
           ) : (
             <RefreshCw size={20} aria-hidden />
           )}
-          רענון
+          {t("common.refresh")}
         </button>
         <button
           onClick={handleSignOut}
@@ -73,7 +71,7 @@ export default function PendingPage() {
           ) : (
             <LogOut size={20} aria-hidden />
           )}
-          התנתקות
+          {t("common.signOut")}
         </button>
         {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
       </div>

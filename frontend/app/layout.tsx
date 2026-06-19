@@ -4,6 +4,7 @@ import AppShell from "@/components/AppShell";
 import { AuthProvider } from "@/lib/auth";
 import { AccountProvider } from "@/lib/account";
 import { BusinessProvider } from "@/lib/business";
+import { I18nProvider } from "@/lib/i18n";
 import "./globals.css";
 
 const plexHebrew = IBM_Plex_Sans_Hebrew({
@@ -15,7 +16,7 @@ const plexHebrew = IBM_Plex_Sans_Hebrew({
 
 export const metadata: Metadata = {
   title: "AI Bookkeeper",
-  description: "הנהלת חשבונות בצ'אט לעוסק פטור",
+  description: "Chat-first bookkeeping for Israeli sole proprietors",
 };
 
 export const viewport: Viewport = {
@@ -26,16 +27,19 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // English is the default; I18nProvider flips lang/dir to Hebrew/RTL on the client when chosen.
   return (
-    <html lang="he" dir="rtl" className={plexHebrew.variable}>
+    <html lang="en" dir="ltr" className={plexHebrew.variable}>
       <body>
-        <AuthProvider>
-          <AccountProvider>
-            <BusinessProvider>
-              <AppShell>{children}</AppShell>
-            </BusinessProvider>
-          </AccountProvider>
-        </AuthProvider>
+        <I18nProvider>
+          <AuthProvider>
+            <AccountProvider>
+              <BusinessProvider>
+                <AppShell>{children}</AppShell>
+              </BusinessProvider>
+            </AccountProvider>
+          </AuthProvider>
+        </I18nProvider>
       </body>
     </html>
   );

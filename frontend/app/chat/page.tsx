@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import ChatInput from "@/components/ChatInput";
 import ChatMessageList from "@/components/ChatMessageList";
 import { api, ApiError } from "@/lib/apiClient";
-import { aiErrorMessage } from "@/lib/labels";
+import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
 import { useIosKeyboardFix } from "@/lib/useIosKeyboardFix";
 import type {
@@ -21,6 +21,7 @@ const nextLocalId = (prefix: string) => `${prefix}-${Date.now()}-${localIdCounte
 
 export default function ChatPage() {
   const { user, loading } = useAuth();
+  const { t, tError } = useI18n();
   const router = useRouter();
   useIosKeyboardFix();
 
@@ -43,9 +44,9 @@ export default function ChatPage() {
 
   const pushError = useCallback(
     (e: unknown) => {
-      pushAssistant(aiErrorMessage(e) ?? (e instanceof ApiError ? e.message : "אירעה שגיאה, נסו שוב."));
+      pushAssistant(tError(e));
     },
-    [pushAssistant],
+    [pushAssistant, tError],
   );
 
   useEffect(() => {
@@ -159,7 +160,7 @@ export default function ChatPage() {
       await api<{ status: string }>(`/businesses/${biz.id}/chat/actions/${actionId}/cancel`, {
         method: "POST",
       });
-      pushAssistant("הפעולה בוטלה.", { actionId });
+      pushAssistant(t("chat.actionCancelled"), { actionId });
       setActiveAction(null);
     } catch (e) {
       pushError(e);
@@ -167,7 +168,7 @@ export default function ChatPage() {
       // only a definitive 4xx (e.g. 409 already-confirmed by another session) dismisses it.
       if (e instanceof ApiError && e.status >= 400 && e.status < 500) setActiveAction(null);
     }
-  }, [biz, activeAction, pushAssistant, pushError]);
+  }, [biz, activeAction, pushAssistant, pushError, t]);
 
   return (
     <div className="flex h-[calc(100dvh-4rem-env(safe-area-inset-bottom,0px))] flex-col">

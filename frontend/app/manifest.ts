@@ -4,11 +4,11 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "AI Bookkeeper",
     short_name: "Bookkeeper",
-    description: "הנהלת חשבונות בצ'אט לעוסק פטור",
+    description: "Chat-based bookkeeping for exempt dealers (Osek Patur)",
     start_url: "/chat",
     display: "standalone",
-    dir: "rtl",
-    lang: "he",
+    dir: "ltr",
+    lang: "en",
     background_color: "#f1f5fd",
     theme_color: "#2563eb",
     icons: [

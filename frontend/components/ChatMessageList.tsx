@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowDown, Clock, FileDown, MessageCircle, RefreshCw } from "lucide-react";
 import ConfirmActionCard from "@/components/ConfirmActionCard";
 import EmptyState from "@/components/EmptyState";
+import { useT } from "@/lib/i18n";
 import type { ActionView, UiChatMessage } from "@/lib/types";
 
 type ChatMessageListProps = {
@@ -23,6 +24,7 @@ export default function ChatMessageList({
   onRetry,
   busy = false,
 }: ChatMessageListProps) {
+  const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
@@ -88,8 +90,8 @@ export default function ChatMessageList({
           <div className="py-6">
             <EmptyState
               Icon={MessageCircle}
-              title="עוד אין הודעות"
-              hint='כתבו מה קרה בעסק. לדוגמה: "קיבלתי 2800 מנועה על עיצוב לוגו בביט"'
+              title={t("chat.emptyTitle")}
+              hint={t("chat.emptyHint")}
             />
           </div>
         )}
@@ -109,7 +111,7 @@ export default function ChatMessageList({
             {m.sendStatus === "pending" && (
               <span className="ms-auto flex items-center gap-1 text-xs text-foreground/50">
                 <Clock size={12} aria-hidden />
-                שולח...
+                {t("chat.sending")}
               </span>
             )}
             {m.sendStatus === "failed" && (
@@ -121,7 +123,7 @@ export default function ChatMessageList({
                 }`}
               >
                 <RefreshCw size={16} aria-hidden />
-                שליחה נכשלה — הקש לנסות שוב
+                {t("chat.sendFailed")}
               </button>
             )}
             {m.pdfUrl && (
@@ -132,7 +134,7 @@ export default function ChatMessageList({
                 className="me-auto mt-1 flex min-h-12 items-center gap-2 rounded-xl border border-border bg-white px-4 text-sm font-medium text-primary transition-transform duration-150 active:scale-[0.98]"
               >
                 <FileDown size={18} aria-hidden />
-                הורדת PDF
+                {t("chat.downloadPdf")}
               </a>
             )}
             {i === confirmIndex && pendingConfirmation && (
@@ -157,7 +159,7 @@ export default function ChatMessageList({
           className="absolute inset-x-0 bottom-3 z-10 mx-auto flex min-h-12 w-fit items-center gap-1.5 rounded-full border border-border bg-white px-4 text-sm font-medium text-primary shadow-md transition-transform duration-150 active:scale-[0.98]"
         >
           <ArrowDown size={18} aria-hidden />
-          הודעות חדשות
+          {t("chat.newMessages")}
         </button>
       )}
     </div>

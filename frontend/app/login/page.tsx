@@ -8,8 +8,10 @@ import {
 import { Loader2, LogIn, Mail } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import LangToggle from "@/components/LangToggle";
 import { useAuth } from "@/lib/auth";
 import { auth } from "@/lib/firebase";
+import { useT } from "@/lib/i18n";
 
 // Public, $5-capped demo account — the one-click button below signs in with it so people
 // you show the app to don't need credentials.
@@ -21,6 +23,7 @@ const inputClass =
 
 export default function LoginPage() {
   const { user, loading } = useAuth();
+  const t = useT();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -38,7 +41,7 @@ export default function LoginPage() {
       await fn();
       router.replace("/chat");
     } catch {
-      setError("ההתחברות נכשלה — בדוק את הפרטים ונסה שוב");
+      setError(t("login.errFailed"));
       setPending(false);
     }
   }
@@ -47,7 +50,7 @@ export default function LoginPage() {
   const signInDemo = () => run(() => signInWithEmailAndPassword(auth, DEMO_EMAIL, DEMO_PASSWORD));
   function signInEmail() {
     if (!email.trim() || !password) {
-      setError("יש להזין אימייל וסיסמה");
+      setError(t("login.errMissing"));
       return;
     }
     run(() => signInWithEmailAndPassword(auth, email.trim(), password));
@@ -55,11 +58,12 @@ export default function LoginPage() {
 
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center px-6">
+      <div className="mb-4">
+        <LangToggle />
+      </div>
       <div className="w-full max-w-sm rounded-2xl border border-border bg-white p-6">
-        <h1 className="text-center text-2xl font-semibold">AI Bookkeeper</h1>
-        <p className="mt-2 text-center text-sm text-foreground/60">
-          {"הנהלת חשבונות בצ'אט לעוסק פטור — קבלות, הוצאות ודוח שנתי"}
-        </p>
+        <h1 className="text-center text-2xl font-semibold">{t("login.title")}</h1>
+        <p className="mt-2 text-center text-sm text-foreground/60">{t("login.subtitle")}</p>
 
         <button
           onClick={signInGoogle}
@@ -67,12 +71,12 @@ export default function LoginPage() {
           className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 font-medium text-on-primary transition-transform duration-150 active:scale-[0.98] disabled:opacity-50"
         >
           {pending ? <Loader2 size={20} className="animate-spin" aria-hidden /> : <LogIn size={20} aria-hidden />}
-          התחברות עם Google
+          {t("login.google")}
         </button>
 
         <div className="my-4 flex items-center gap-3 text-xs text-foreground/40">
           <span className="h-px flex-1 bg-border" />
-          או
+          {t("login.or")}
           <span className="h-px flex-1 bg-border" />
         </div>
 
@@ -88,21 +92,21 @@ export default function LoginPage() {
             dir="ltr"
             inputMode="email"
             autoComplete="email"
-            placeholder="name@example.com"
+            placeholder={t("login.email")}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className={inputClass}
-            aria-label="אימייל"
+            aria-label={t("login.emailLabel")}
           />
           <input
             type="password"
             dir="ltr"
             autoComplete="current-password"
-            placeholder="סיסמה"
+            placeholder={t("login.password")}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className={inputClass}
-            aria-label="סיסמה"
+            aria-label={t("login.password")}
           />
           <button
             type="submit"
@@ -110,7 +114,7 @@ export default function LoginPage() {
             className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-primary px-5 font-medium text-primary transition-transform duration-150 active:scale-[0.98] disabled:opacity-50"
           >
             <Mail size={18} aria-hidden />
-            התחברות עם אימייל
+            {t("login.emailSignin")}
           </button>
         </form>
 
@@ -119,7 +123,7 @@ export default function LoginPage() {
           disabled={pending}
           className="mt-3 min-h-12 w-full rounded-xl bg-muted px-5 text-sm font-medium text-foreground/70 transition-transform duration-150 active:scale-[0.98] disabled:opacity-50"
         >
-          כניסה לחשבון דמו
+          {t("login.demo")}
         </button>
 
         {error && <p className="mt-3 text-center text-sm text-destructive">{error}</p>}

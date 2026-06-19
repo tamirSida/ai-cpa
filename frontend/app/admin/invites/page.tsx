@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { Loader2, Mail, Send } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
-import { api, ApiError } from "@/lib/apiClient";
-import { INVITE_STATUS_LABELS } from "@/lib/labels";
+import { api } from "@/lib/apiClient";
+import { useI18n } from "@/lib/i18n";
 import type { Invite, InviteStatus } from "@/lib/types";
 
 const STATUS_BADGE: Record<InviteStatus, string> = {
@@ -21,8 +21,8 @@ function inputClass(invalid: boolean): string {
   }`;
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("he-IL");
+function formatDate(iso: string, lang: string): string {
+  return new Date(iso).toLocaleDateString(lang === "he" ? "he-IL" : "en-US");
 }
 
 function byNewest(a: Invite, b: Invite): number {
@@ -30,14 +30,16 @@ function byNewest(a: Invite, b: Invite): number {
 }
 
 function StatusBadge({ status }: { status: InviteStatus }) {
+  const { t } = useI18n();
   return (
     <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_BADGE[status]}`}>
-      {INVITE_STATUS_LABELS[status]}
+      {t(`inviteStatus.${status}`)}
     </span>
   );
 }
 
 export default function AdminInvitesPage() {
+  const { t, lang, tError } = useI18n();
   const [invites, setInvites] = useState<Invite[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,8 +58,8 @@ export default function AdminInvitesPage() {
         setInvites([...rows].sort(byNewest));
         setLoaded(true);
       })
-      .catch((e) => setError((e as Error).message));
-  }, []);
+      .catch((e) => setError(tError(e)));
+  }, [tError]);
 
   // Merge a created/re-invited record: replace if the id already exists, else prepend.
   function upsertInvite(invite: Invite) {
@@ -72,7 +74,7 @@ export default function AdminInvitesPage() {
     if (submitting) return;
     const value = email.trim().toLowerCase();
     if (!EMAIL_RE.test(value)) {
-      setFormError("כתובת אימייל לא תקינה");
+      setFormError(t("admin.invalidEmail"));
       return;
     }
     setSubmitting(true);
@@ -86,7 +88,7 @@ export default function AdminInvitesPage() {
       upsertInvite(created);
       setEmail("");
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : (err as Error).message);
+      setFormError(tError(err));
     } finally {
       setSubmitting(false);
     }
@@ -102,7 +104,7 @@ export default function AdminInvitesPage() {
         list.map((i) => (i.id === invite.id ? { ...i, status: "revoked" } : i))
       );
     } catch (err) {
-      setRowError(err instanceof ApiError ? err.message : (err as Error).message);
+      setRowError(tError(err));
     } finally {
       setRevoking(null);
     }
@@ -113,7 +115,7 @@ export default function AdminInvitesPage() {
       {/* Invite-by-email form — this page's primary action. */}
       <form onSubmit={submit} noValidate className="mb-6 flex flex-col gap-2">
         <label htmlFor="invite-email" className="text-sm font-medium">
-          הזמנת משתמש לפי אימייל
+          {t("admin.inviteByEmail")}
         </label>
         <div className="flex items-start gap-2">
           <div className="flex-1">
@@ -143,7 +145,7 @@ export default function AdminInvitesPage() {
             ) : (
               <Send size={18} aria-hidden />
             )}
-            שלח הזמנה
+            {t("admin.sendInvite")}
           </button>
         </div>
         {formError && <p className="text-sm text-destructive">{formError}</p>}
@@ -164,8 +166,8 @@ export default function AdminInvitesPage() {
       ) : invites.length === 0 ? (
         <EmptyState
           Icon={Mail}
-          title="אין הזמנות עדיין"
-          hint="הזמן משתמש לפי כתובת אימייל בטופס למעלה."
+          title={t("admin.noInvites")}
+          hint={t("admin.noInvitesHint")}
         />
       ) : (
         <>
@@ -181,7 +183,7 @@ export default function AdminInvitesPage() {
                   <StatusBadge status={inv.status} />
                 </div>
                 <div className="mt-1 flex items-center justify-between gap-2">
-                  <span dir="ltr" className="text-sm text-foreground/60">{formatDate(inv.createdAt)}</span>
+                  <span dir="ltr" className="text-sm text-foreground/60">{formatDate(inv.createdAt, lang)}</span>
                   {inv.status === "pending" && (
                     <button
                       onClick={() => revoke(inv)}
@@ -189,7 +191,7 @@ export default function AdminInvitesPage() {
                       className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl px-3 font-medium text-destructive transition-transform duration-150 active:scale-[0.98] disabled:opacity-50"
                     >
                       {revoking === inv.id && <Loader2 size={16} className="animate-spin" aria-hidden />}
-                      ביטול
+                      {t("admin.revoke")}
                     </button>
                   )}
                 </div>
@@ -202,9 +204,9 @@ export default function AdminInvitesPage() {
             <table className="w-full text-sm">
               <thead className="border-b border-border bg-muted/50">
                 <tr>
-                  <th className="p-3 text-start font-medium">אימייל</th>
-                  <th className="p-3 text-start font-medium">סטטוס</th>
-                  <th className="p-3 text-start font-medium">נשלחה</th>
+                  <th className="p-3 text-start font-medium">{t("admin.colEmail")}</th>
+                  <th className="p-3 text-start font-medium">{t("admin.colStatus")}</th>
+                  <th className="p-3 text-start font-medium">{t("admin.colSent")}</th>
                   <th className="p-3 text-start font-medium" />
                 </tr>
               </thead>
@@ -213,7 +215,7 @@ export default function AdminInvitesPage() {
                   <tr key={inv.id} className="border-b border-border last:border-b-0">
                     <td className="p-3"><span dir="ltr">{inv.email}</span></td>
                     <td className="p-3"><StatusBadge status={inv.status} /></td>
-                    <td className="p-3"><span dir="ltr">{formatDate(inv.createdAt)}</span></td>
+                    <td className="p-3"><span dir="ltr">{formatDate(inv.createdAt, lang)}</span></td>
                     <td className="p-3 text-end">
                       {inv.status === "pending" && (
                         <button
@@ -222,7 +224,7 @@ export default function AdminInvitesPage() {
                           className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-3 font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
                         >
                           {revoking === inv.id && <Loader2 size={16} className="animate-spin" aria-hidden />}
-                          ביטול
+                          {t("admin.revoke")}
                         </button>
                       )}
                     </td>

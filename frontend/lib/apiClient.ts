@@ -2,6 +2,13 @@ import { auth } from "./firebase";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
 
+// Tell the backend which language to localize its responses in (chat replies, errors).
+// Reads the same localStorage key the i18n provider writes; defaults to English.
+function langHeader(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  return { "Accept-Language": localStorage.getItem("lang") === "he" ? "he" : "en" };
+}
+
 export class ApiError extends Error {
   constructor(public code: string, message: string, public status: number) {
     super(message);
@@ -21,6 +28,7 @@ async function request<T>(
     ...init,
     headers: {
       ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
+      ...langHeader(),
       ...init?.headers,
       Authorization: `Bearer ${token}`,
     },
@@ -55,7 +63,7 @@ export async function apiBlob(path: string, init: RequestInit = {}): Promise<Blo
     const token = await user.getIdToken(force);
     return fetch(`${BASE_URL}${path}`, {
       ...init,
-      headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` },
+      headers: { ...langHeader(), ...(init.headers ?? {}), Authorization: `Bearer ${token}` },
     });
   };
   let res = await doFetch(false);

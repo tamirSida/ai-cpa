@@ -5,9 +5,11 @@ import { Ban, Loader2, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { auth } from "@/lib/firebase";
+import { useT } from "@/lib/i18n";
 
 export default function DisabledPage() {
   const router = useRouter();
+  const t = useT();
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,7 +20,7 @@ export default function DisabledPage() {
       await signOut(auth);
       router.replace("/login");
     } catch {
-      setError("ההתנתקות נכשלה, נסה שוב");
+      setError(t("common.signOutFailed"));
       setSigningOut(false);
     }
   }
@@ -27,10 +29,8 @@ export default function DisabledPage() {
     <main className="flex min-h-dvh flex-col items-center justify-center px-6">
       <div className="w-full max-w-sm rounded-2xl border border-border bg-white p-6 text-center">
         <Ban size={56} className="mx-auto text-destructive/60" aria-hidden />
-        <h1 className="mt-4 text-xl font-semibold">החשבון הושבת</h1>
-        <p className="mt-2 text-sm text-foreground/60">
-          {"החשבון שלך הושבת. לפרטים נוספים פנה למנהל המערכת."}
-        </p>
+        <h1 className="mt-4 text-xl font-semibold">{t("disabled.title")}</h1>
+        <p className="mt-2 text-sm text-foreground/60">{t("disabled.body")}</p>
         <button
           onClick={handleSignOut}
           disabled={signingOut}
@@ -41,7 +41,7 @@ export default function DisabledPage() {
           ) : (
             <LogOut size={20} aria-hidden />
           )}
-          התנתקות
+          {t("common.signOut")}
         </button>
         {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
       </div>

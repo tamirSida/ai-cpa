@@ -2,12 +2,13 @@
 
 import { useRef, useState, type ChangeEvent } from "react";
 import { Camera, ImageUp, Loader2 } from "lucide-react";
-import { api } from "@/lib/apiClient";
-import { aiErrorMessage } from "@/lib/labels";
+import { api, ApiError } from "@/lib/apiClient";
+import { useI18n } from "@/lib/i18n";
 import type { Expense } from "@/lib/types";
 
 export default function UploadExpenseButton({ businessId, onUploaded }:
   { businessId: string; onUploaded: (e: Expense) => void }) {
+  const { t, tError } = useI18n();
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -26,12 +27,13 @@ export default function UploadExpenseButton({ businessId, onUploaded }:
         // The upload itself succeeded; only auto-extraction failed. Surface the budget case so the
         // user knows WHY the fields weren't filled; otherwise keep the silent fallback (502
         // extraction_failed) and let them fill the fields manually in the review sheet.
-        const budgetMsg = aiErrorMessage(e);
-        if (budgetMsg) setError(`${budgetMsg} — אפשר למלא את הפרטים ידנית.`);
+        if (e instanceof ApiError && e.code === "ai_budget_exceeded") {
+          setError(t("expenses.budgetExceededManual", { msg: tError(e) }));
+        }
       }
       onUploaded(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "ההעלאה נכשלה, נסו שוב");
+      setError(tError(err));
     } finally {
       setBusy(false);
       if (cameraRef.current) cameraRef.current.value = "";
@@ -57,7 +59,7 @@ export default function UploadExpenseButton({ businessId, onUploaded }:
           className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-5 font-medium text-on-primary transition-transform duration-150 active:scale-[0.98] disabled:opacity-50"
         >
           {busy ? <Loader2 size={20} className="animate-spin" aria-hidden /> : <Camera size={20} aria-hidden />}
-          {busy ? "מעלה ומזהה..." : "צילום הוצאה"}
+          {busy ? t("expenses.uploadingBusy") : t("expenses.captureExpense")}
         </button>
         <button
           onClick={() => galleryRef.current?.click()}
@@ -65,7 +67,7 @@ export default function UploadExpenseButton({ businessId, onUploaded }:
           className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-border bg-white px-5 font-medium text-foreground transition-transform duration-150 active:scale-[0.98] disabled:opacity-50"
         >
           {busy ? <Loader2 size={20} className="animate-spin" aria-hidden /> : <ImageUp size={20} aria-hidden />}
-          העלאה מהגלריה
+          {t("expenses.uploadFromGallery")}
         </button>
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}

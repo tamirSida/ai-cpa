@@ -1,9 +1,8 @@
 "use client";
 import type { Receipt } from "@/lib/types";
-import { PAYMENT_LABELS } from "@/lib/types";
 import { formatILS } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 
-const STATUS_HE: Record<Receipt["status"], string> = { draft: "טיוטה", issued: "הופקה", cancelled: "מבוטלת" };
 const STATUS_CLASS: Record<Receipt["status"], string> = {
   draft: "bg-muted text-foreground/60",
   issued: "bg-accent/10 text-accent",
@@ -11,9 +10,10 @@ const STATUS_CLASS: Record<Receipt["status"], string> = {
 };
 
 export function ReceiptStatusBadge({ status }: { status: Receipt["status"] }) {
+  const t = useT();
   return (
     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CLASS[status]}`}>
-      {STATUS_HE[status]}
+      {t(`receipts.status.${status}`)}
     </span>
   );
 }
@@ -25,6 +25,7 @@ export default function ReceiptList({
   receipts: Receipt[];
   onSelect: (receipt: Receipt) => void;
 }) {
+  const t = useT();
   return (
     <>
       {/* Primary markup: mobile card list */}
@@ -48,8 +49,8 @@ export default function ReceiptList({
               </div>
               {r.checkDetails && (
                 <div className="mt-1 text-sm text-foreground/60">
-                  צ'ק: מס׳ <span className="tnum" dir="ltr">{r.checkDetails.number}</span> · {r.checkDetails.bank} · סניף{" "}
-                  <span className="tnum" dir="ltr">{r.checkDetails.branch}</span> · פירעון{" "}
+                  {t("receipts.checkLabel")} {t("receipts.checkNumber")} <span className="tnum" dir="ltr">{r.checkDetails.number}</span> · {r.checkDetails.bank} · {t("receipts.checkBranch")}{" "}
+                  <span className="tnum" dir="ltr">{r.checkDetails.branch}</span> · {t("receipts.checkDueDate")}{" "}
                   <span className="tnum" dir="ltr">{r.checkDetails.dueDate}</span>
                 </div>
               )}
@@ -62,8 +63,8 @@ export default function ReceiptList({
         <table className="w-full text-start">
           <thead>
             <tr className="border-b border-border text-sm font-bold">
-              <th scope="col" className="p-3">מספר</th><th scope="col" className="p-3">תאריך</th><th scope="col" className="p-3">לקוח</th>
-              <th scope="col" className="p-3">סכום</th><th scope="col" className="p-3">אמצעי</th><th scope="col" className="p-3">סטטוס</th><th scope="col" className="p-3">PDF</th>
+              <th scope="col" className="p-3">{t("receipts.colNumber")}</th><th scope="col" className="p-3">{t("receipts.colDate")}</th><th scope="col" className="p-3">{t("receipts.colClient")}</th>
+              <th scope="col" className="p-3">{t("receipts.colAmount")}</th><th scope="col" className="p-3">{t("receipts.colMethod")}</th><th scope="col" className="p-3">{t("receipts.colStatus")}</th><th scope="col" className="p-3">{t("receipts.colPdf")}</th>
             </tr>
           </thead>
           <tbody>
@@ -73,7 +74,7 @@ export default function ReceiptList({
                 <td className="p-3" dir="ltr">{r.issueDate}</td>
                 <td className="p-3">{r.clientSnapshot.name}</td>
                 <td className="tnum p-3" dir="ltr">{formatILS(r.amount)}</td>
-                <td className="p-3">{PAYMENT_LABELS[r.paymentMethod]}</td>
+                <td className="p-3">{t(`receipts.payment.${r.paymentMethod}`)}</td>
                 <td className="p-3"><ReceiptStatusBadge status={r.status} /></td>
                 <td className="p-3">
                   {r.pdfUrl ? (
@@ -84,7 +85,7 @@ export default function ReceiptList({
                       rel="noreferrer"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      הורדה
+                      {t("receipts.download")}
                     </a>
                   ) : (
                     "—"

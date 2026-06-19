@@ -3,10 +3,13 @@
 
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { MonthlyIncomeEntry } from "@/lib/types";
-import { MONTH_NAMES_HE, formatILS } from "@/lib/format";
+import { monthNames, formatILS } from "@/lib/format";
+import { useI18n } from "@/lib/i18n";
 
 export default function MonthlyIncomeChart({ data }: { data: MonthlyIncomeEntry[] }) {
-  const chartData = data.map((m) => ({ name: MONTH_NAMES_HE[m.month - 1], total: m.total }));
+  const { lang } = useI18n();
+  const months = monthNames(lang);
+  const chartData = data.map((m) => ({ name: months[m.month - 1], total: m.total }));
   return (
     <div className="w-full" dir="ltr">
       <ResponsiveContainer width="100%" height={220}>
