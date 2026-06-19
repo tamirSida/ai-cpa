@@ -52,7 +52,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const { account, loading: accountLoading, fetchError: accountError, refresh: refreshAccount } = useAccount();
-  const { loading: bizLoading } = useBusiness();
+  const { loading: bizLoading, loaded: bizLoaded } = useBusiness();
 
   // Status gate: lock pending users to /pending, disabled users to /disabled, and bounce
   // active users off those screens. AuthProvider owns the /login redirect.
@@ -68,8 +68,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   if (authLoading || (user && accountLoading)) return <Splash />;  // resolving auth/account
   // signed in but /users/me failed (no account, not loading): offer retry, not broken chrome
   if (user && !accountLoading && !account && accountError) return <AccountError onRetry={() => void refreshAccount()} />;
-  // active user whose business is still loading, on a non-bare route -> splash (avoid chrome flash)
-  if (user && account?.status === "active" && bizLoading && !BARE_ROUTES.includes(pathname)) return <Splash />;
+  // active user whose business is still loading (or not yet fetched), on a non-bare route ->
+  // splash, so we never flash app/onboarding chrome before /businesses/me resolves.
+  if (user && account?.status === "active" && (bizLoading || !bizLoaded) && !BARE_ROUTES.includes(pathname)) return <Splash />;
   // pending/disabled user: ONLY their own status screen may render; on any other route
   // (incl. the bare /onboarding form) the status-gate redirect is in flight -> splash.
   if (user && account && account.status !== "active") {
