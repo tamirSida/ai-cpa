@@ -14,6 +14,15 @@ export const MONTH_NAMES_HE = [
   "יולי", "אוג׳", "ספט׳", "אוק׳", "נוב׳", "דצמ׳",
 ];
 
+export const MONTH_NAMES_EN = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+export function monthNames(lang: "en" | "he"): string[] {
+  return lang === "he" ? MONTH_NAMES_HE : MONTH_NAMES_EN;
+}
+
 // AI budget/usage is denominated in USD; output is LTR ($3.00) — callers wrap in dir="ltr".
 export function formatUsd(n: number): string {
   return new Intl.NumberFormat("en-US", {
