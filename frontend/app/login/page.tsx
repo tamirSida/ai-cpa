@@ -13,11 +13,6 @@ import { useAuth } from "@/lib/auth";
 import { auth } from "@/lib/firebase";
 import { useT } from "@/lib/i18n";
 
-// Public, $5-capped demo account — the one-click button below signs in with it so people
-// you show the app to don't need credentials.
-const DEMO_EMAIL = "demo@portfolio-plus.com";
-const DEMO_PASSWORD = "DemoTax2026!";
-
 const inputClass =
   "min-h-12 w-full rounded-xl border border-border bg-white px-4 text-base focus:outline-none focus:ring-2 focus:ring-primary";
 
@@ -47,7 +42,6 @@ export default function LoginPage() {
   }
 
   const signInGoogle = () => run(() => signInWithPopup(auth, new GoogleAuthProvider()));
-  const signInDemo = () => run(() => signInWithEmailAndPassword(auth, DEMO_EMAIL, DEMO_PASSWORD));
   function signInEmail() {
     if (!email.trim() || !password) {
       setError(t("login.errMissing"));
@@ -117,14 +111,6 @@ export default function LoginPage() {
             {t("login.emailSignin")}
           </button>
         </form>
-
-        <button
-          onClick={signInDemo}
-          disabled={pending}
-          className="mt-3 min-h-12 w-full rounded-xl bg-muted px-5 text-sm font-medium text-foreground/70 transition-transform duration-150 active:scale-[0.98] disabled:opacity-50"
-        >
-          {t("login.demo")}
-        </button>
 
         {error && <p className="mt-3 text-center text-sm text-destructive">{error}</p>}
       </div>
